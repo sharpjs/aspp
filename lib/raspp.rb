@@ -66,8 +66,8 @@ module Raspp
       on_eol_esc: %W| \\      |,
       on_eol:     %W| \n \r   |,
     }
-    .each do |type, toks|
-      toks.each { |tok| types[tok] = type }
+    .each do |type, chars|
+      chars.each { |c| types[c] = type }
     end
   end
 
