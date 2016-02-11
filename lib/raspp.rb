@@ -86,7 +86,7 @@ module Raspp
       end
       flush_id
       flush_text
-      puts @script
+      $stderr.puts @script
       Environment.new.instance_eval @script
     end
 

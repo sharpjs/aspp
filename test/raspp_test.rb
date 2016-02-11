@@ -16,23 +16,50 @@
 # along with raspp.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-require "minitest/autorun"
+require 'minitest/autorun'
+require 'stringio'
 
-require_relative "../lib/raspp"
+require_relative '../lib/raspp'
 
 module Raspp
-  refine String do
-    def unindent
-      gsub(/^#{self[/\A +/]}/, '')
+  class RasppTest <  Minitest::Test
+    def assert_pp(input, output)
+      input  = unindent input
+      output = unindent output
+      actual = capture do
+        Raspp::process(input, 'test', 1)
+      end
+      assert_equal output, actual
+    end
+
+    private
+
+    def capture
+      begin
+        _stdout = $stdout
+        $stdout = StringIO.new('','w')
+        yield
+        $stdout.string
+      ensure
+        $stdout = _stdout
+      end
+    end
+
+    def unindent(text)
+      text .sub!(/\A\n/,  '')
+      text .sub!(/^ +\z/, '')
+      text.gsub!(/^#{text[/\A +/]}/, '')
+      text
     end
   end
-  using Raspp
 
-  class GeneralTest < Minitest::Test
+  class GeneralTest < RasppTest
     def test_foo
-      Raspp::process(<<-END.unindent, 'test', 1)
+      assert_pp '
         a
-      END
+      ', '
+        a
+      '
     end
   end
 end
