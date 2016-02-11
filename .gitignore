@@ -1,0 +1,13 @@
+# Ruby files
+*.gem
+
+# Vim
+*.sw?
+
+# Temporary files
+temp*
+tmp*
+
+# Mac OS X
+.DS_Store
+
