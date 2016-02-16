@@ -16,11 +16,29 @@
 # You should have received a copy of the GNU General Public License
 # along with raspp.  If not, see <http://www.gnu.org/licenses/>.
 #
-# Features:
-# - ruby code
-# - line continuation
-# - aliases (inline token macros)
-# - comment removal
+# FEATURES
+#
+# Ruby code:
+#
+#   @ puts "a ruby line"
+#
+#   move.l `inline_ruby`, d0
+#
+# Aliases (inline token macros)
+#
+#   move.l v@[8, fp], x@d0
+#   add.l  #3, x
+#   move.l x, v
+#
+# Comment removal
+#
+#   ; this is a comment
+#
+# Line continuation:
+#
+#   this is \
+#   all one line
+#
 
 module Raspp
   def self.process(input, file = "(stdin)", line = 1)
