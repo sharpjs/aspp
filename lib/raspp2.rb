@@ -8,8 +8,23 @@
 
 module Raspp
   def self.process(input, file = "(stdin)", line = 1)
+    input.gsub!(MACROS) do
+      if $~[:fn]
+        "#define SCOPE #{$~[:fn]}\n" +
+        ".fn SCOPE\n"
+      end
+    end
     print input
   end
+
+  private
+
+  ID     = '[a-zA-Z._$][a-zA-Z0-9._$]*'
+
+  MACROS = /
+    (?: ^ (?<fn>#{ID}) \(\): )
+  /mx
+
 end
 
 if __FILE__ == $0
