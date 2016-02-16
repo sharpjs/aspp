@@ -21,13 +21,18 @@ module Raspp
       p $~
       if (text = $~[:skip])
         # Text protected from expansions
+        text.scan(EOL) { line += 1 }
         text
+      elsif (text = $~[:eol])
+        line += 1
+        "\n"
       elsif (text = $~[:comment])
         # Comment
         "//#{text}"
       elsif (text = $~[:fn])
         # Function label
         "#define SCOPE #{text}\n" +
+        "# #{line} #{file}\n" +
         ".fn SCOPE\n"
       end
     end
@@ -51,6 +56,7 @@ module Raspp
   / (?<skip> #{STR}         (?# double-quoted string   )
            | ^ \# #{ANY}*+  (?# preprocessor directive )
     )
+  | (?<eol> #{EOL} )
   | (?: ; (?<comment>#{ANY}*+) )
   | (?: ^ (?<fn>#{ID}) \(\): )
   /mx
