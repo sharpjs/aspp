@@ -17,8 +17,11 @@
 module Raspp
   def self.process(input, file = "(stdin)", line = 1)
     input.gsub!(MACROS) do
-      if $~[:fn]
-        "#define SCOPE #{$~[:fn]}\n" +
+      p $~
+      if (text = $~[:skip])
+        text
+      elsif (text = $~[:fn])
+        "#define SCOPE #{text}\n" +
         ".fn SCOPE\n"
       end
     end
@@ -27,10 +30,22 @@ module Raspp
 
   private
 
-  ID     = '[a-zA-Z._$][a-zA-Z0-9._$]*'
+  ID   = / [a-zA-Z._$][a-zA-Z0-9._$]*  /mx
+  CHAR = / ' (?: [^\\'] | \\.?+ )*+ '? /mx
+  STR  = / " (?: [^\\"] | \\.?+ )*+ "? /mx
+  RUBY = / ` (?: [^`]           )*+ `? /mx
 
-  MACROS = /
-    (?: ^ (?<fn>#{ID}) \(\): )
+  EOL  = / \n | \r\n?      /x
+  EOLF = / \n | \r\n? | \z /x
+
+  WS   = / [ \t]   | \\ #{EOL} /x
+  ANY  = / [^\r\n] | \\ #{EOL} /x
+
+  MACROS =
+  / (?<skip> #{STR}         (?# double-quoted string   )
+           | ^ \# #{ANY}*+  (?# preprocessor directive )
+    )
+  | (?: ^ (?<fn>#{ID}) \(\): )
   /mx
 
 end
