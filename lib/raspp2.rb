@@ -7,11 +7,12 @@
 #
 # FEATURES:
 #
+# Comments
+#   ; foo   --> // foo
+#
 # Function Labels
-#
-#   foo():  -->  #declare SCOPE foo
+#   foo():  --> #declare SCOPE foo
 #               .fn SCOPE
-#
 #
 
 module Raspp
@@ -19,8 +20,13 @@ module Raspp
     input.gsub!(MACROS) do
       p $~
       if (text = $~[:skip])
+        # Text protected from expansions
         text
+      elsif (text = $~[:comment])
+        # Comment
+        "//#{text}"
       elsif (text = $~[:fn])
+        # Function label
         "#define SCOPE #{text}\n" +
         ".fn SCOPE\n"
       end
@@ -35,16 +41,17 @@ module Raspp
   STR  = / " (?: [^\\"] | \\.?+ )*+ "? /mx
   RUBY = / ` (?: [^`]           )*+ `? /mx
 
-  EOL  = / \n | \r\n?      /x
-  EOLF = / \n | \r\n? | \z /x
+  EOL  = / \n | \r\n?      /mx
+  EOLF = / \n | \r\n? | \z /mx
 
-  WS   = / [ \t]   | \\ #{EOL} /x
-  ANY  = / [^\r\n] | \\ #{EOL} /x
+  WS   = / [ \t]   | \\ #{EOL} /mx
+  ANY  = / [^\r\n] | \\ #{EOL} /mx
 
   MACROS =
   / (?<skip> #{STR}         (?# double-quoted string   )
            | ^ \# #{ANY}*+  (?# preprocessor directive )
     )
+  | (?: ; (?<comment>#{ANY}*+) )
   | (?: ^ (?<fn>#{ID}) \(\): )
   /mx
 
