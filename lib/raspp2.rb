@@ -5,6 +5,14 @@
 # raspp.rb - Assembly Preprocessor in Ruby
 # Copyright (C) 2016 Jeffrey Sharp
 #
+# FEATURES:
+#
+# Function Labels
+#
+#   foo():  -->  #declare SCOPE foo
+#               .fn SCOPE
+#
+#
 
 module Raspp
   def self.process(input, file = "(stdin)", line = 1)
