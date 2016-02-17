@@ -17,6 +17,8 @@
 
 module Raspp
   def self.process(input, file = "(stdin)", line = 1)
+    scope = nil
+
     input.gsub!(MACROS) do
       p $~
       if (text = $~[:skip])
@@ -24,6 +26,7 @@ module Raspp
         text.scan(EOL) { line += 1 }
         text
       elsif (text = $~[:eol])
+        # End of line
         line += 1
         "\n"
       elsif (text = $~[:comment])
@@ -31,9 +34,13 @@ module Raspp
         "//#{text}"
       elsif (text = $~[:fn])
         # Function label
+        scope = text
         "#define SCOPE #{text}\n" +
         "# #{line} #{file}\n" +
         ".fn SCOPE\n"
+      elsif (text = $~[:local])
+        # Local symbol
+        scope ? ".L.#{scope}.#{text}" : ".L#{text}"
       end
     end
     print input
@@ -56,9 +63,12 @@ module Raspp
   / (?<skip> #{STR}         (?# double-quoted string   )
            | ^ \# #{ANY}*+  (?# preprocessor directive )
     )
-  | (?<eol> #{EOL} )
-  | (?: ; (?<comment>#{ANY}*+) )
-  | (?: ^ (?<fn>#{ID}) \(\): )
+  |     (?<eol>     #{EOL}   )
+  | ;   (?<comment> #{ANY}*+ )
+  | ^   (?<fn>      #{ID}    ) \(\):
+  | ^\. (?<local>   #{ID}    ) (?=:)
+  | ^   (?<skip>    #{WS}* #{ID} #{WS}++ )
+  | \.  (?<local>   #{ID}    )
   /mx
 
 end
