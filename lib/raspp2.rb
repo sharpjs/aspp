@@ -40,7 +40,7 @@ module Raspp
     scope = nil
 
     input.gsub!(MACROS) do
-      p $~
+      #p $~
       if (text = $~[:skip])
         # Text protected from expansions
         text.scan(EOL) { line += 1 }
@@ -57,7 +57,12 @@ module Raspp
           scope and scope[text] = alt
           alt
         else
-          scope and scope[text] or text
+          rep = (scope and scope[text] or text)
+          if rep != text
+            "T(#{text}, #{rep})"
+          else
+            text
+          end
         end
       elsif (text = $~[:label])
         # Function label
