@@ -76,6 +76,16 @@ module Raspp
       elsif (text = $~[:local])
         # Local symbol
         scope ? ".L.#{scope.name}.#{text}" : ".L#{text}"
+      elsif (text = $~[:arg])
+        "ARG(#{text})"
+      elsif (text = $~[:var])
+        "VAR(#{text})"
+      elsif (text = $~[:predec])
+        "-(#{text})"
+      elsif (text = $~[:postinc])
+        "(#{text})+"
+      elsif (text = $~[:indr])
+        "(#{text})"
       end
     end
     print input
@@ -105,8 +115,7 @@ module Raspp
   WS   = %r{ [ \t]   | \\ #{EOL} }mx
   ANY  = %r{ [^\r\n] | \\ #{EOL} }mx
 
-  SEP  = %r{ (?>#{WS}+) (?!;|//) }mx
-  CODE = %r{ [^ \t\r\n;] | #{SEP} | \\ #{EOL} | #{PROT} }mx
+  CODE = %r{ [^\r\n\];] | \\ #{EOL} | #{PROT} }mx
 
   MACROS = %r{
       (?<skip> #{STR}
@@ -119,6 +128,13 @@ module Raspp
                (?: [ \t]* => [ \t]* (?<def>#{ID}) )?+
     | ^ [ \t]* (?<label>   #{ID}   ) (?<fn>\(\))?+ :
     | \.       (?<local>   #{ID}   )
+    | \$       (?<arg> #{ID} )
+    |  @       (?<var> #{ID} )
+    | \[ (?: -- (?<predec>  #{ID}     )
+         |      (?<postinc> #{ID}     ) \+\+
+         |      (?<indr>    #{CODE}++ )
+         )
+      \]
   }mx
 
   class Scope
