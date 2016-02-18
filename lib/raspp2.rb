@@ -52,9 +52,16 @@ module Raspp
       elsif (text = $~[:comment])
         # Comment
         "//#{text}"
+      elsif (text = $~[:id])
+        if (alt = $~[:def])
+          scope and scope[text] = alt
+          alt
+        else
+          scope and scope[text] or text
+        end
       elsif (text = $~[:label])
         # Function label
-        scope = text
+        scope = Scope.new(text)
         if $~[:fn]
           "#ifdef SCOPE\n" +
           "#undef SCOPE\n" +
@@ -76,7 +83,7 @@ module Raspp
         end
       elsif (text = $~[:local])
         # Local symbol
-        scope ? ".L.#{scope}.#{text}" : ".L#{text}"
+        scope ? ".L.#{scope.name}.#{text}" : ".L#{text}"
       end
     end
     print input
@@ -110,15 +117,40 @@ module Raspp
   CODE = %r{ [^ \t\r\n;] | #{SEP} | \\ #{EOL} | #{PROT} }mx
 
   MACROS = %r{
-      (?<skip> #{ID} (?![(:])
-      |        #{STR}
+      (?<skip> #{STR}
       |        ^ \# #{ANY}*+
       )
     |          (?<eol>     #{EOL}  )
     | ;        (?<comment> #{REST} )
-    | ^ #{WS}* (?<label>   #{ID}   ) (?<fn>\(\))?+ :
+    |          (?<id> #{ID} )
+               (?! [(:] )
+               (?: [ \t]* => [ \t]* (?<def>#{ID}) )?+
+    | ^ [ \t]* (?<label>   #{ID}   ) (?<fn>\(\))?+ :
     | \.       (?<local>   #{ID}   )
   }mx
+
+  class Scope
+    attr_reader :name, :parent
+
+    def initialize(name, parent = nil)
+      @name, @parent, @k2v, @v2k = name, parent, {}, {}
+    end
+
+    def subscope
+      Scope.new(self)
+    end
+
+    def [](key)
+      @k2v[key] || (@parent ? @parent[key] : key)
+    end
+
+    def []=(key, val)
+      @v2k.delete(@k2v[key]) # Remove map: new key <- old val
+      @k2v.delete(@v2k[val]) # Remove map: old key -> new val
+      @k2v[key] = val
+      @v2k[val] = key
+    end
+  end
 end
 
 if __FILE__ == $0
