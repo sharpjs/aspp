@@ -62,25 +62,17 @@ module Raspp
       elsif (text = $~[:label])
         # Function label
         scope = Scope.new(text)
-        if $~[:fn]
-          "#ifdef SCOPE\n" +
-          "#undef SCOPE\n" +
-          "# #{line} #{file}\n" +
-          ".endfn\n" +
-          "#endif\n" +
-          "\n" +
-          "#define SCOPE #{text}\n" +
-          "# #{line} #{file}\n" +
-          ".fn SCOPE\n"
-        else
-          "#ifdef SCOPE\n" +
-          "#undef SCOPE\n" +
-          "#endif\n" +
-          "\n" +
-          "#define SCOPE #{text}\n" +
-          "# #{line} #{file}\n" +
-          "SCOPE:"
-        end
+        fn = $~[:fn]
+        "\n// #{$~}\n" +
+        "#ifdef SCOPE\n" +
+        "#undef SCOPE\n" +
+        (fn ? "# #{line} #{file}\n" : "") +
+        (fn ? ".endfn\n"            : "") +
+        "#endif\n" +
+        "\n" +
+        "#define SCOPE #{text}\n" +
+        "# #{line} #{file}\n" +
+        (fn ? ".fn SCOPE\n" : "SCOPE:" )
       elsif (text = $~[:local])
         # Local symbol
         scope ? ".L.#{scope.name}.#{text}" : ".L#{text}"
