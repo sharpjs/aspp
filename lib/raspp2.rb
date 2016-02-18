@@ -101,7 +101,7 @@ module Raspp
   ID0  = %Q{[[:alpha:]_]}
   IDN  = %Q{[[:alnum:]_.$]}
 
-  ID_  = %r{ #{ID0} #{IDN}*+ }mx
+  ID_  = %r{ #{ID0} #{IDN}* }mx
   MARG = %r{ \\ (?: #{ID_} | \(\) ) }mx
   ID   = %r{
     (?: #{ID0} | #{MARG} )
@@ -124,6 +124,7 @@ module Raspp
 
   MACROS = %r{
       (?<skip> #{STR}
+      |        ^ [ \t]* \. #{ID} (?![(:])
       |        ^ \# #{ANY}*+
       )
     |          (?<eol>     #{EOL}  )
