@@ -25,11 +25,7 @@
 #   foo => d0
 #   foo     --> TOK(foo, d0)
 #
-# Special Symbol Aliases
-#   $foo    --> ARG(foo)
-#   @bar    --> VAR(bar)
-#
-# Bracket Replacement
+# Indirect Addressing
 #   [x, y]  --> (x, y)
 #   [--x]   --> -(x)
 #   [x++]   --> (x)+
@@ -39,7 +35,7 @@ module Raspp
   def self.process(input, file = "(stdin)", line = 1)
     scope = nil
 
-    input.gsub!(MACROS) do
+    input.gsub!(STAGE1) do
       #p $~
       if (text = $~[:skip])
         # Text protected from expansions
@@ -81,16 +77,8 @@ module Raspp
       elsif (text = $~[:local])
         # Local symbol
         scope ? ".L.#{scope.name}.#{text}" : ".L#{text}"
-      elsif (text = $~[:arg])
-        "ARG(#{text})"
-      elsif (text = $~[:var])
-        "VAR(#{text})"
-      elsif (text = $~[:predec])
-        "-(#{text})"
-      elsif (text = $~[:postinc])
-        "(#{text})+"
-      elsif (text = $~[:indr])
-        "(#{text})"
+      elsif (text = $~[:ind])
+        "#{$~[:pre]}(#{text})#{$~[:post]}"
       end
     end
     print input
@@ -108,10 +96,9 @@ module Raspp
     (?: #{IDN} | #{MARG} )*+
   }mx
 
-  CHAR = %r{ ' (?: [^\\'] | \\.?+ )*+ '? }mx
   STR  = %r{ " (?: [^\\"] | \\.?+ )*+ "? }mx
-  RUBY = %r{ ` (?: [^`]           )*+ `? }mx
-  PROT = %r{ #{CHAR} | #{STR} | #{RUBY}  }mx
+
+  BOL  = %r{ (?<= \A | \A[\r\n] | \A\r\n | [^\\][\r\n] | [^\\]\r\n ) }mx
 
   EOL  = %r{ \n | \r\n?+      }mx
   EOLF = %r{ \n | \r\n?+ | \z }mx
@@ -120,26 +107,37 @@ module Raspp
   WS   = %r{ [ \t]   | \\ #{EOL} }mx
   ANY  = %r{ [^\r\n] | \\ #{EOL} }mx
 
-  CODE = %r{ [^\r\n\];] | \\ #{EOL} | #{PROT} }mx
+  CODE = %r{ [^\r\n\];] | \\ #{EOL} | #{STR} }mx
 
-  MACROS = %r{
-      (?<skip> #{STR}
-      |        ^ [ \t]* \. #{ID} (?![(:])
-      |        ^ \# #{ANY}*+
-      )
-    |          (?<eol>     #{EOL}  )
-    | ;        (?<comment> #{REST} )
-    |          (?<id> #{ID} )
-               (?! [(:] )
-               (?: [ \t]* => [ \t]* (?<def>#{ID}) )?+
-    | ^ [ \t]* (?<label>   #{ID}   ) (?<fn>\(\))?+ :
-    | \.       (?<local>   #{ID}   )
-    | \$       (?<arg> #{ID} )
-    |  @       (?<var> #{ID} )
-    | \[ (?: -- (?<predec>  #{ID}     )
-         |      (?<postinc> #{ID}     ) \+\+
-         |      (?<indr>    #{CODE}++ )
-         )
+  STAGE1 = %r{
+      # verbatim text
+      (?<skip> #{STR}                           # string literal
+             | #{BOL} \# #{ANY}*+               # cpp directive
+             | #{BOL} #{WS}* \. #{ID} (?![(:])  # asm directive at bol
+             )
+    |
+      # end of line
+      (?<eol> #{EOL} )
+    |
+      # comment
+      ; (?<comment> #{REST} )
+
+    |
+      # identifier or alias
+      (?<id> #{ID} )
+      (?! [(:] )
+      (?: #{WS} => #{WS} (?<def> #{ID} ) )?+
+    |
+      # public label
+      #{BOL} #{WS}* (?<label> #{ID} ) (?<fn> \(\) )?+ :
+    |
+      # local symbol
+      \. (?<local> #{ID} )
+    |
+      # indirect addressing
+      \[
+        (?: (?<pre>  [-+] ) \k<pre>  )?  (?<ind> #{CODE}++ )
+        (?: (?<post> [-+] ) \k<post> )?
       \]
   }mx
 
