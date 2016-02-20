@@ -2,40 +2,40 @@
 # encoding: UTF-8
 # frozen_string_literal: true
 #
-# raspp.rb - Assembly Preprocessor in Ruby
+# raspp2.rb - Assembly Preprocessor in Ruby
 # Copyright (C) 2016 Jeffrey Sharp
 #
 # FEATURES:
 #
-# Comments
-#   ; foo   --> // foo
+# * Comments
+#     ; foo   --> // foo
 #
-# Function Labels
-#   foo():  --> #declare SCOPE foo
-#               .fn SCOPE
+# * Function Labels
+#     foo():  --> #declare SCOPE foo
+#                 .fn SCOPE
 #
-# Non-Function Labels
-#   foo:    --> #declare SCOPE foo
-#               SCOPE:
+# * Non-Function Labels
+#     foo:    --> #declare SCOPE foo
+#                 SCOPE:
 #
-# Local Symbols
-#   .bar    --> .L.SCOPE.bar
+# * Local Symbols
+#     .bar    --> .L.SCOPE.bar
 #
-# Local Token Aliases
-#   foo => d0
-#   foo     --> TOK(foo, d0)
+# * Local Token Aliases
+#     foo => d0
+#     foo     --> TOK(foo, d0)
 #
-# Indirect Addressing
-#   [x, y]  --> (x, y)
-#   [--x]   --> -(x)
-#   [x++]   --> (x)+
+# * Indirect Addressing
+#     [x, y]  --> (x, y)
+#     [--x]   --> -(x)
+#     [x++]   --> (x)+
 #
 
 module Raspp
   def self.process(input, file = "(stdin)", line = 1)
     scope = nil
 
-    input.gsub!(STAGE1) do
+    input.gsub!(EXPAND) do
       #p $~
       if (text = $~[:skip])
         # Text protected from expansions
@@ -86,30 +86,33 @@ module Raspp
 
   private
 
-  ID0  = %Q{[[:alpha:]_]}
-  IDN  = %Q{[[:alnum:]_.$]}
+  # Identifiers
+  ID0 = %r{ [[:alpha:]_]         }mx  # first char
+  IDN = %r{ [[:alnum:]_$.]       }mx  # remaining chars
+  ID_ = %r{ (?> #{ID0} #{IDN}* ) }mx  # identifier
 
-  ID_  = %r{ #{ID0} #{IDN}* }mx
-  MARG = %r{ \\ (?: #{ID_} | \(\) ) }mx
-  ID   = %r{
-    (?: #{ID0} | #{MARG} )
-    (?: #{IDN} | #{MARG} )*+
+  # Identifiers, allowing macro arguments inside
+  ARG = %r{ \\ (?: #{ID_} | \(\) | @ ) }mx
+  ID  = %r{ (?> (?: #{ID0} | #{ARG} ) (?: #{IDN} | #{ARG} )* ) }mx
+
+  # Line begin/end
+  BOL = %r{ (?<= \A | \A[\r\n] | \A\r\n | [^\\][\r\n] | [^\\]\r\n ) }mx
+  EOL = %r{ \n | \r\n?+ }mx
+
+  # Character classes
+  WS  = %r{ [ \t]     | \\ #{EOL}   }mx # whitespace
+  ANY = %r{ [^\r\n\\] | \\ #{EOL}?+ }mx # any except eol
+
+  # Quoted chunks
+  STR = %r{
+    " (?: [^\\"] | \\ (?: [^\r\n] | #{EOL} | \z ) )*+ "?+
+  }mx
+  IND = %r{
+    (?: [^\r\n\]\\";] | \\ #{EOL}?+ | #{STR} )++
   }mx
 
-  STR  = %r{ " (?: [^\\"] | \\.?+ )*+ "? }mx
-
-  BOL  = %r{ (?<= \A | \A[\r\n] | \A\r\n | [^\\][\r\n] | [^\\]\r\n ) }mx
-
-  EOL  = %r{ \n | \r\n?+      }mx
-  EOLF = %r{ \n | \r\n?+ | \z }mx
-  REST = %r{ [^\r\n]*+        }mx
-
-  WS   = %r{ [ \t]   | \\ #{EOL} }mx
-  ANY  = %r{ [^\r\n] | \\ #{EOL} }mx
-
-  CODE = %r{ [^\r\n\];] | \\ #{EOL} | #{STR} }mx
-
-  STAGE1 = %r{
+  # Main pattern
+  EXPAND = %r{
       # verbatim text
       (?<skip> #{STR}                           # string literal
              | #{BOL} \# #{ANY}*+               # cpp directive
@@ -117,27 +120,26 @@ module Raspp
              )
     |
       # end of line
-      (?<eol> #{EOL} )
+      (?<eol>#{EOL})
     |
-      # comment
-      ; (?<comment> #{REST} )
-
+      # line comment
+      (;|//) (?<comment>[^\r\n]*+)
     |
-      # identifier or alias
-      (?<id> #{ID} )
-      (?! [(:] )
-      (?: #{WS} => #{WS} (?<def> #{ID} ) )?+
+      # identifier
+      (?<id>#{ID_}) (?![(:])
+      # alias definition
+      (?: #{WS} => #{WS} (?<def>#{ID}) )?+
     |
       # public label
-      #{BOL} #{WS}* (?<label> #{ID} ) (?<fn> \(\) )?+ :
+      #{BOL} #{WS}* (?<label>#{ID}) (?<fn>\(\))?+ :
     |
       # local symbol
-      \. (?<local> #{ID} )
+      \. (?!L) (?<local>#{ID})
     |
       # indirect addressing
       \[
-        (?: (?<pre>  [-+] ) \k<pre>  )?  (?<ind> #{CODE}++ )
-        (?: (?<post> [-+] ) \k<post> )?
+        (?: (?<pre> [-+]) \k<pre>  )?+ (?<ind>#{IND})
+        (?: (?<post>[-+]) \k<post> )?+
       \]
   }mx
 
