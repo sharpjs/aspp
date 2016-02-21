@@ -81,7 +81,7 @@ module Raspp
       # verbatim text
       (?<skip> #{STR}                           # string literal
              | #{BOL} \# #{ANY}*+               # cpp directive
-             | #{BOL} #{WS}* \. #{ID} (?![(:])  # asm directive at bol
+             | #{BOL} #{WS}* \.? #{ID} (?![(:]) # asm directive at bol
              )
     |
       # end of line
@@ -108,6 +108,7 @@ module Raspp
       \]
   }mx
 
+  # Expansion in indirect addressing ([...])
   EXPAND_IND = %r{
       # verbatim text
       (?<skip>#{STR})
@@ -125,13 +126,12 @@ module Raspp
 
   class Preprocessor
     def initialize(file = "(stdin)", line = 1)
-      @file, @line, @aliases, @script = file, line, {}, ''
+      @file, @line, @scope = file, line, Scope.new(nil)
+      @root = @scope
     end
 
     def process(input)
-      @scope = nil
-
-      input.gsub!(EXPAND) do |text|
+      $stdout << input.gsub(EXPAND) do |text|
         kind = KINDS.find { |h| text = $~[h] }
         if kind
           send(:"on_#{kind}", text, $~)
@@ -139,62 +139,72 @@ module Raspp
           text
         end
       end
-
-      print input
     end
 
-    # Text protected from expansions
-    def on_skip(text, match)
+    # Text exempt from expansion
+    def on_skip(text, _)
+      # Text might have internal newlines, possibly escaped.
+      # Count these newlines to keep line numbers in sync.
       text.scan(EOL) { @line += 1 }
-      text
     end
 
     # End of line
-    def on_eol(text, match)
+    def on_eol(_, _)
+      # Normalize to LF, keep line numbers in sync.
       @line += 1
       "\n"
     end
 
     # Comment
     def on_comment(text, match)
+      # Normalize to C++ line comments
       "//#{text}"
     end
 
-    def on_id(text, match)
-      alt = match[:def]
-      if alt
-        @scope and @scope[text] = alt
-        alt
+    # Identifier
+    def on_id(id, match)
+      if not (real = match[:def]).nil?
+        # Alias definition
+        @scope[id] = real
+      elsif not (real = @scope[id]) == id
+        # Alias reference
+        "ALIAS(#{id}, #{real})"
       else
-        rep = (@scope and @scope[text] or text)
-        if rep != text
-          "T(#{text}, #{rep})"
-        else
-          text
-        end
+        # Plain identifier
+        id
       end
     end
 
+    # Label, static or global
     def on_label(text, match)
-      @scope = Scope.new(text)
-      fn = match[:fn]
-      "\n// #{match}\n" +
-      "#ifdef SCOPE\n" +
-      "#undef SCOPE\n" +
-      (fn ? "# #{@line} #{@file}\n" : "") +
-      (fn ? ".endfn\n"            : "") +
-      "#endif\n" +
-      "\n" +
-      "#define SCOPE #{text}\n" +
-      "# #{@line} #{@file}\n" +
-      (fn ? ".fn SCOPE\n" : "SCOPE:" )
+      # Start a new local scope
+      @scope = @root.subscope(text)
+
+      # Detect if this is a function label
+      fn = !!match[:fn]
+
+      # Redefine scope with CPP, possibly start function with asm macro
+      <<~END
+        // #{match}
+        #ifdef SCOPE
+        #undef SCOPE
+        #endif
+        #define SCOPE #{text}
+        # #{@line} #{@file}
+        #{fn ? ".fn SCOPE" : "SCOPE:"}
+      END
     end
 
     # Local symbol
     def on_local(text, match)
-      @scope ? ".L.#{@scope.name}.#{text}" : ".L#{text}"
+      if @scope.name
+        ".L.#{@scope.name}.#{text}"
+      else
+        ".L#{text}"
+      end
     end
 
+    # Indirect addressing
     def on_ind(text, match)
       "#{match[:pre]}(#{text})#{match[:post]}"
     end
@@ -207,8 +217,8 @@ module Raspp
       @name, @parent, @k2v, @v2k = name, parent, {}, {}
     end
 
-    def subscope
-      Scope.new(self)
+    def subscope(name)
+      Scope.new(name, self)
     end
 
     def [](key)
@@ -220,6 +230,7 @@ module Raspp
       @k2v.delete(@v2k[val]) # Remove map: old key -> new val
       @k2v[key] = val
       @v2k[val] = key
+      val
     end
   end
 end
