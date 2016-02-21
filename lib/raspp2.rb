@@ -46,55 +46,7 @@
 
 module Raspp
   def self.process(input, file = "(stdin)", line = 1)
-    scope = nil
-
-    input.gsub!(EXPAND) do
-      #p $~
-      if (text = $~[:skip])
-        # Text protected from expansions
-        text.scan(EOL) { line += 1 }
-        text
-      elsif (text = $~[:eol])
-        # End of line
-        line += 1
-        "\n"
-      elsif (text = $~[:comment])
-        # Comment
-        "//#{text}"
-      elsif (text = $~[:id])
-        if (alt = $~[:def])
-          scope and scope[text] = alt
-          alt
-        else
-          rep = (scope and scope[text] or text)
-          if rep != text
-            "T(#{text}, #{rep})"
-          else
-            text
-          end
-        end
-      elsif (text = $~[:label])
-        # Function label
-        scope = Scope.new(text)
-        fn = $~[:fn]
-        "\n// #{$~}\n" +
-        "#ifdef SCOPE\n" +
-        "#undef SCOPE\n" +
-        (fn ? "# #{line} #{file}\n" : "") +
-        (fn ? ".endfn\n"            : "") +
-        "#endif\n" +
-        "\n" +
-        "#define SCOPE #{text}\n" +
-        "# #{line} #{file}\n" +
-        (fn ? ".fn SCOPE\n" : "SCOPE:" )
-      elsif (text = $~[:local])
-        # Local symbol
-        scope ? ".L.#{scope.name}.#{text}" : ".L#{text}"
-      elsif (text = $~[:ind])
-        "#{$~[:pre]}(#{text})#{$~[:post]}"
-      end
-    end
-    print input
+    Preprocessor.new(file, line).process(input)
   end
 
   private
@@ -155,6 +107,77 @@ module Raspp
         (?: (?<post>[-+]) \k<post> )?+
       \]
   }mx
+
+  EXPAND_IND = %r{
+      # verbatim text
+      (?<skip>#{STR})
+    |
+      # identifier
+      (?<id>#{ID_}) (?![(:])
+      # alias definition
+      (?: #{WS} => #{WS} (?<def>#{ID}) )?+
+    |
+      # local symbol
+      \. (?!L) (?<local>#{ID})
+  }mx
+
+  class Preprocessor
+    def initialize(file = "(stdin)", line = 1)
+      @file, @line, @aliases, @script = file, line, {}, ''
+    end
+
+    def process(input)
+      scope = nil
+
+      input.gsub!(EXPAND) do
+        if (text = $~[:skip])
+          # Text protected from expansions
+          text.scan(EOL) { @line += 1 }
+          text
+        elsif (text = $~[:eol])
+          # End of line
+          @line += 1
+          "\n"
+        elsif (text = $~[:comment])
+          # Comment
+          "//#{text}"
+        elsif (text = $~[:id])
+          if (alt = $~[:def])
+            scope and scope[text] = alt
+            alt
+          else
+            rep = (scope and scope[text] or text)
+            if rep != text
+              "T(#{text}, #{rep})"
+            else
+              text
+            end
+          end
+        elsif (text = $~[:label])
+          # Function label
+          scope = Scope.new(text)
+          fn = $~[:fn]
+          "\n// #{$~}\n" +
+          "#ifdef SCOPE\n" +
+          "#undef SCOPE\n" +
+          (fn ? "# #{@line} #{@file}\n" : "") +
+          (fn ? ".endfn\n"            : "") +
+          "#endif\n" +
+          "\n" +
+          "#define SCOPE #{text}\n" +
+          "# #{@line} #{@file}\n" +
+          (fn ? ".fn SCOPE\n" : "SCOPE:" )
+        elsif (text = $~[:local])
+          # Local symbol
+          scope ? ".L.#{scope.name}.#{text}" : ".L#{text}"
+        elsif (text = $~[:ind])
+          "#{$~[:pre]}(#{text})#{$~[:post]}"
+        end
+      end
+
+      print input
+    end
+  end
 
   class Scope
     attr_reader :name, :parent
