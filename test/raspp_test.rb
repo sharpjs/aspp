@@ -56,9 +56,11 @@ module Raspp
   class GeneralTest < RasppTest
     def test_foo
       assert_pp '
-        a
+        1 + a@b0
+        2 + a
       ', '
-        a
+        1 + b0
+        2 + b0
       '
     end
   end
