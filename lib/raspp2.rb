@@ -127,7 +127,7 @@ module Raspp
     end
 
     def process(input)
-      scope = nil
+      @scope = nil
 
       input.gsub!(EXPAND) do
         if (text = $~[:skip])
@@ -143,10 +143,10 @@ module Raspp
           "//#{text}"
         elsif (text = $~[:id])
           if (alt = $~[:def])
-            scope and scope[text] = alt
+            @scope and @scope[text] = alt
             alt
           else
-            rep = (scope and scope[text] or text)
+            rep = (@scope and @scope[text] or text)
             if rep != text
               "T(#{text}, #{rep})"
             else
@@ -155,7 +155,7 @@ module Raspp
           end
         elsif (text = $~[:label])
           # Function label
-          scope = Scope.new(text)
+          @scope = Scope.new(text)
           fn = $~[:fn]
           "\n// #{$~}\n" +
           "#ifdef SCOPE\n" +
@@ -169,7 +169,7 @@ module Raspp
           (fn ? ".fn SCOPE\n" : "SCOPE:" )
         elsif (text = $~[:local])
           # Local symbol
-          scope ? ".L.#{scope.name}.#{text}" : ".L#{text}"
+          @scope ? ".L.#{@scope.name}.#{text}" : ".L#{text}"
         elsif (text = $~[:ind])
           "#{$~[:pre]}(#{text})#{$~[:post]}"
         end
