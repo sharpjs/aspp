@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 #
 # raspp.rb - Assembly Preprocessor in Ruby
-# Copyright (C) 2015 Jeffrey Sharp
+# Copyright (C) 2016 Jeffrey Sharp
 #
 # raspp is free software: you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published
