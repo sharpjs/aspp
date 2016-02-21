@@ -130,52 +130,56 @@ module Raspp
       @scope = nil
 
       input.gsub!(EXPAND) do
-        if (text = $~[:skip])
-          # Text protected from expansions
-          text.scan(EOL) { @line += 1 }
-          text
-        elsif (text = $~[:eol])
-          # End of line
-          @line += 1
-          "\n"
-        elsif (text = $~[:comment])
-          # Comment
-          "//#{text}"
-        elsif (text = $~[:id])
-          if (alt = $~[:def])
-            @scope and @scope[text] = alt
-            alt
-          else
-            rep = (@scope and @scope[text] or text)
-            if rep != text
-              "T(#{text}, #{rep})"
-            else
-              text
-            end
-          end
-        elsif (text = $~[:label])
-          # Function label
-          @scope = Scope.new(text)
-          fn = $~[:fn]
-          "\n// #{$~}\n" +
-          "#ifdef SCOPE\n" +
-          "#undef SCOPE\n" +
-          (fn ? "# #{@line} #{@file}\n" : "") +
-          (fn ? ".endfn\n"            : "") +
-          "#endif\n" +
-          "\n" +
-          "#define SCOPE #{text}\n" +
-          "# #{@line} #{@file}\n" +
-          (fn ? ".fn SCOPE\n" : "SCOPE:" )
-        elsif (text = $~[:local])
-          # Local symbol
-          @scope ? ".L.#{@scope.name}.#{text}" : ".L#{text}"
-        elsif (text = $~[:ind])
-          "#{$~[:pre]}(#{text})#{$~[:post]}"
-        end
+        expand $~
       end
 
       print input
+    end
+
+    def expand(m)
+      if (text = m[:skip])
+        # Text protected from expansions
+        text.scan(EOL) { @line += 1 }
+        text
+      elsif (text = m[:eol])
+        # End of line
+        @line += 1
+        "\n"
+      elsif (text = m[:comment])
+        # Comment
+        "//#{text}"
+      elsif (text = m[:id])
+        if (alt = m[:def])
+          @scope and @scope[text] = alt
+          alt
+        else
+          rep = (@scope and @scope[text] or text)
+          if rep != text
+            "T(#{text}, #{rep})"
+          else
+            text
+          end
+        end
+      elsif (text = m[:label])
+        # Function label
+        @scope = Scope.new(text)
+        fn = m[:fn]
+        "\n// #{m}\n" +
+        "#ifdef SCOPE\n" +
+        "#undef SCOPE\n" +
+        (fn ? "# #{@line} #{@file}\n" : "") +
+        (fn ? ".endfn\n"            : "") +
+        "#endif\n" +
+        "\n" +
+        "#define SCOPE #{text}\n" +
+        "# #{@line} #{@file}\n" +
+        (fn ? ".fn SCOPE\n" : "SCOPE:" )
+      elsif (text = m[:local])
+        # Local symbol
+        @scope ? ".L.#{@scope.name}.#{text}" : ".L#{text}"
+      elsif (text = m[:ind])
+        "#{m[:pre]}(#{text})#{m[:post]}"
+      end
     end
   end
 
