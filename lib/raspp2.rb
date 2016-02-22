@@ -101,11 +101,11 @@ module Raspp
       # local symbol
       \. (?!L) (?<local>#{ID})
     |
-      # indirect addressing
-      \[
-        (?: (?<pre> [-+]) \k<pre>  )?+ (?<ind>#{IND})
-        (?: (?<post>[-+]) \k<post> )?+
-      \]
+      # address begin
+      (?<ea_begin>\[) (?: (?<pre>[-+]) \k<pre> )?+
+    |
+      # address end
+      (?: (?<post>[-+]) \k<post> )?+ (?<ea_end>\])
   }mx
 
   # Expansion in indirect addressing ([...])
@@ -122,7 +122,7 @@ module Raspp
       \. (?!L) (?<local>#{ID})
   }mx
 
-  KINDS = %i[ skip eol comment id label local ind ]
+  KINDS = %i[ skip eol comment id label local ea_begin ea_end ]
 
   class Preprocessor
     def initialize(file = "(stdin)", line = 1)
@@ -204,9 +204,14 @@ module Raspp
       end
     end
 
-    # Indirect addressing
-    def on_ind(text, match)
-      "#{match[:pre]}(#{text})#{match[:post]}"
+    # Effective Address Begin
+    def on_ea_begin(text, match)
+      "#{match[:pre]}("
+    end
+
+    # Effective Address End
+    def on_ea_end(text, match)
+      ")#{match[:post]}"
     end
   end
 
