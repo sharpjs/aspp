@@ -21,22 +21,22 @@
 # FEATURES
 #
 # * Comments
-#     ; foo   --> // foo
+#     ; foo     --> // foo
 #
 # * Function Labels
-#     foo():  --> #declare SCOPE foo
-#                 .fn SCOPE
+#     foo():    --> #declare SCOPE foo
+#                   .fn SCOPE
 #
 # * Non-Function Labels
-#     foo:    --> #declare SCOPE foo
+#     foo:      --> #declare SCOPE foo
 #                 SCOPE:
 #
 # * Local Symbols
-#     .bar    --> .L.SCOPE.bar
+#     .bar      --> .L.SCOPE.bar
 #
 # * Local Token Aliases
 #     foo => d0
-#     foo     --> TOK(foo, d0)
+#     foo       --> TOK(foo, d0)
 #
 
 module Raspp
