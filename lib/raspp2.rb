@@ -38,11 +38,6 @@
 #     foo => d0
 #     foo     --> TOK(foo, d0)
 #
-# * Indirect Addressing
-#     [x, y]  --> (x, y)
-#     [--x]   --> -(x)
-#     [x++]   --> (x)+
-#
 
 module Raspp
   def self.process(input, file = "(stdin)", line = 1)
@@ -100,29 +95,9 @@ module Raspp
     |
       # local symbol
       \. (?!L) (?<local>#{ID})
-    |
-      # address begin
-      (?<ea_begin>\[) (?: (?<pre>[-+]) \k<pre> )?+
-    |
-      # address end
-      (?: (?<post>[-+]) \k<post> )?+ (?<ea_end>\])
   }mx
 
-  # Expansion in indirect addressing ([...])
-  EXPAND_IND = %r{
-      # verbatim text
-      (?<skip>#{STR})
-    |
-      # identifier
-      (?<id>#{ID_}) (?![(:])
-      # alias definition
-      (?: #{WS} => #{WS} (?<def>#{ID}) )?+
-    |
-      # local symbol
-      \. (?!L) (?<local>#{ID})
-  }mx
-
-  KINDS = %i[ skip eol comment id label local ea_begin ea_end ]
+  KINDS = %i[ skip eol comment id label local ]
 
   class Preprocessor
     def initialize(file = "(stdin)", line = 1)
@@ -202,16 +177,6 @@ module Raspp
       else
         ".L#{text}"
       end
-    end
-
-    # Effective Address Begin
-    def on_ea_begin(text, match)
-      "#{match[:pre]}("
-    end
-
-    # Effective Address End
-    def on_ea_end(text, match)
-      ")#{match[:post]}"
     end
   end
 
