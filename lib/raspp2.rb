@@ -60,8 +60,8 @@ module Raspp
   EOL = %r{ \n | \r\n?+ }mx
 
   # Character classes
-  WS  = %r{ [ \t]     | \\ #{EOL}   }mx # whitespace
-  ANY = %r{ [^\r\n\\] | \\ #{EOL}?+ }mx # any except eol
+  WS  = %r{ [ \t]      | \\ #{EOL}   }mx # whitespace
+  ANY = %r{ [^\r\n\\;] | \\ #{EOL}?+ }mx # any except eol
 
   # Quoted chunks
   STR = %r{
@@ -71,12 +71,29 @@ module Raspp
     (?: [^\r\n\]\\";] | \\ #{EOL}?+ | #{STR} )++
   }mx
 
+  ID_OR_MACRO = %r{
+    #{ID_}
+    (?:
+      \(
+        (?<code>
+          [^"\[\](){}]+   |
+          #{STR}          |
+          \[ \g<code>* \] |
+          \( \g<code>* \) |
+          \{ \g<code>* \}
+        )*
+      \)
+    )?+
+  }mx
+
   # Main pattern
   EXPAND = %r{
       # verbatim text
-      (?<skip> #{STR}                           # string literal
-             | #{BOL} \# #{ANY}*+               # cpp directive
-             | #{BOL} #{WS}* \.? #{ID} (?![(:]) # asm directive at bol
+      (?<skip> #{STR}                                 # string literal
+             | #{BOL} \# #{ANY}*+                     # cpp directive
+             | (#{BOL}|:) #{WS}* \.? #{ID} (?![(:])   # asm directive
+             | (?:arg|var) \( #{WS}* #{ID} #{WS}* \)
+             | \.[bwl] (?![[:alnum:]_$.])
              )
     |
       # end of line
@@ -88,10 +105,10 @@ module Raspp
       # identifier
       (?<id>#{ID_}) (?![(:])
       # alias definition
-      (?: #{WS} => #{WS} (?<def>#{ID}) )?+
+      (?: #{WS}* => #{WS}* (?<def>#{ID_OR_MACRO}) )?+
     |
       # public label
-      #{BOL} #{WS}* (?<label>#{ID}) (?<fn>\(\))?+ :
+      #{BOL} #{WS}* (?<label>#{ID}) (?: (?<fn>\(\):)?+ | (?=:) )
     |
       # local symbol
       \. (?!L) (?<local>#{ID})
@@ -143,7 +160,7 @@ module Raspp
         @scope[id] = real
       elsif not (real = @scope[id]) == id
         # Alias reference
-        "ALIAS(#{id}, #{real})"
+        "_(#{id})#{real}"
       else
         # Plain identifier
         id
@@ -161,22 +178,27 @@ module Raspp
       # Redefine scope with CPP, possibly start function with asm macro
       <<~END
         // #{match}
-        #ifdef SCOPE
-        #undef SCOPE
+        #ifdef scope
+        #undef scope
         #endif
-        #define SCOPE #{text}
+        #define scope #{text}
         # #{@line} #{@file}
-        #{fn ? ".fn SCOPE" : "SCOPE:"}
+        #{fn ? ".fn scope" : "scope"}
       END
     end
 
     # Local symbol
     def on_local(text, match)
       if @scope.name
-        ".L.#{@scope.name}.#{text}"
+        "L.#{text}"
       else
-        ".L#{text}"
+        ".LL#{text}"
       end
+      #if @scope.name
+      #  ".L.#{@scope.name}.#{text}"
+      #else
+      #  ".L#{text}"
+      #end
     end
   end
 
