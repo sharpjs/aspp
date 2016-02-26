@@ -38,6 +38,11 @@
 #     foo => d0
 #     foo       --> TOK(foo, d0)
 #
+# * Indirect Addressing
+#     [x, y]  --> (x, y)
+#     [--x]   --> -(x)
+#     [x++]   --> (x)+
+#
 
 module Raspp
   def self.process(input, file = "(stdin)", line = 1)
@@ -61,11 +66,13 @@ module Raspp
 
   # Character classes
   WS  = %r{ [ \t]      | \\ #{EOL}   }mx # whitespace
-  ANY = %r{ [^\r\n\\;] | \\ #{EOL}?+ }mx # any except eol
+  ANY = %r{ [^\r\n\\;] | \\ #{EOL}?+ }mx # any, except comment or eol
+
+  ESC = %r{ \\ (?: [^\r] | \r\n?+ | \z ) }mx
 
   # Quoted chunks
   STR = %r{
-    " (?: [^\\"] | \\ (?: [^\r\n] | #{EOL} | \z ) )*+ "?+
+    " (?: [^\\"] | #{ESC} )*+ "?+
   }mx
   IND = %r{
     (?: [^\r\n\]\\";] | \\ #{EOL}?+ | #{STR} )++
@@ -86,35 +93,45 @@ module Raspp
     )?+
   }mx
 
-  # Main pattern
-  EXPAND = %r{
-      # verbatim text
-      (?<skip> #{STR}                                 # string literal
-             | #{BOL} \# #{ANY}*+                     # cpp directive
-             | (#{BOL}|:) #{WS}* \.? #{ID} (?![(:])   # asm directive
-             | (?:arg|var) \( #{WS}* #{ID} #{WS}* \)
-             | \.[bwl] (?![[:alnum:]_$.])
-             )
+  # Line separation
+  LINES = %r{ \G
+    (?:
+      (?:
+        (?<code> (?: [^\r\n;/\\"] | / (?!/) | #{ESC} | #{STR} )++ )
+        (?: (?:;|//) (?<comment> [^\r\n]*+ ) )?+
+      |
+        (?: (?:;|//) (?<comment> [^\r\n]*+ ) )
+      )
+      (?<eol> #{EOL} | \z )
     |
-      # end of line
-      (?<eol>#{EOL})
-    |
-      # line comment
-      (;|//) (?<comment>[^\r\n]*+)
-    |
-      # identifier
-      (?<id>#{ID_}) (?![(:])
-      # alias definition
-      (?: #{WS}* => #{WS}* (?<def>#{ID_OR_MACRO}) )?+
-    |
-      # public label
-      #{BOL} #{WS}* (?<label>#{ID}) (?: (?<fn>\(\):)?+ | (?=:) )
-    |
-      # local symbol
-      \. (?!L) (?<local>#{ID})
+      (?<eol> #{EOL} )
+    )
   }mx
 
-  KINDS = %i[ skip eol comment id label local ]
+  # Main pattern
+  TOKENS = %r{
+    (?:
+      # label or directive
+      (?: \A | \G (?<=:) ) #{WS}* \K (?<is_local>\.)? (?<term>#{ID})
+      (?: (?<is_f> \(\): )
+        | (?<is_l>     : ) )?+
+    |
+      # sigiled identifier
+      (?<sigil>[@$.]) (?<id>#{ID})
+    |
+      # plain identifier or alias def
+      (?<id>#{ID})
+      (?: #{WS}* => #{WS}* (?<alt>#{ID_OR_MACRO}) )?+
+    |
+      # effective address begin
+      (?<ea_begin>\[) (?: (?<pre>[-+]) \k<pre> )?+
+    |
+      # effective address end
+      (?: (?<post>[-+]) \k<post> )?+ (?<ea_end>\])
+    )
+  }mx
+
+  KINDS = %i[ term sigil id ea_begin ea_end ]
 
   class Preprocessor
     def initialize(file = "(stdin)", line = 1)
@@ -123,82 +140,123 @@ module Raspp
     end
 
     def process(input)
-      $stdout << input.gsub(EXPAND) do |text|
-        kind = KINDS.find { |h| text = $~[h] }
+      input.scan(LINES) do |code, com1, com2, eol1, eol2|
+        print expand(code), ("//" if com1 || com2), com1, com2, eol1, eol2
+      end
+    end
+
+    def expand(code)
+      code&.gsub!(TOKENS) do |tok|
+        kind = KINDS.find { |k| tok = $~[k] }
         if kind
-          send(:"on_#{kind}", text, $~)
+          send(:"on_#{kind}", tok, $~)
         else
-          text
+          tok
         end
       end
+      code
     end
 
-    # Text exempt from expansion
-    def on_skip(text, _)
-      # Text might have internal newlines, possibly escaped.
-      # Count these newlines to keep line numbers in sync.
-      text.scan(EOL) { @line += 1 }
+    def on_term(text, match)
+      text
     end
 
-    # End of line
-    def on_eol(_, _)
-      # Normalize to LF, keep line numbers in sync.
-      @line += 1
-      "\n"
-    end
-
-    # Comment
-    def on_comment(text, match)
-      # Normalize to C++ line comments
-      "//#{text}"
-    end
-
-    # Identifier
-    def on_id(id, match)
-      if not (real = match[:def]).nil?
-        # Alias definition
-        @scope[id] = real
-      elsif not (real = @scope[id]) == id
-        # Alias reference
-        "_(#{id})#{real}"
-      else
-        # Plain identifier
-        id
+    def on_sigil(sigil, match)
+      case sigil
+      when '@' then "ARG(#{match[:id]})"
+      when '$' then "VAR(#{match[:id]})"
+      when '.' then   "L(#{match[:id]})"
       end
     end
 
-    # Label, static or global
-    def on_label(text, match)
-      # Start a new local scope
-      @scope = @root.subscope(text)
-
-      # Detect if this is a function label
-      fn = !!match[:fn]
-
-      # Redefine scope with CPP, possibly start function with asm macro
-      <<~END
-        // #{match}
-        #ifdef scope
-        #undef scope
-        #endif
-        #define scope #{text}
-        # #{@line} #{@file}
-        #{fn ? ".fn scope" : "scope"}
-      END
+    def on_id(text, match)
+      text
     end
 
-    # Local symbol
-    def on_local(text, match)
-      if @scope.name
-        "L.#{text}"
-      else
-        ".LL#{text}"
-      end
-      #if @scope.name
-      #  ".L.#{@scope.name}.#{text}"
-      #else
-      #  ".L#{text}"
-      #end
+    ## Text exempt from expansion
+    #def on_skip(text, _)
+    #  # Text might have internal newlines, possibly escaped.
+    #  # Count these newlines to keep line numbers in sync.
+    #  text.scan(EOL) { @line += 1 }
+    #end
+
+    ## End of line
+    #def on_eol(_, _)
+    #  # Normalize to LF, keep line numbers in sync.
+    #  @line += 1
+    #  "\n"
+    #end
+
+    ## Comment
+    #def on_comment(text, match)
+    #  # Normalize to C++ line comments
+    #  "//#{text}"
+    #end
+
+    #def on_special(id, match)
+    #  case match[:sigil]
+    #  when '@' then "ARG(#{id})"
+    #  when '$' then "VAR(#{id})"
+    #  else match
+    #  end
+    #end
+
+    ## Identifier
+    #def on_id(id, match)
+    #  if not (real = match[:def]).nil?
+    #    # Alias definition
+    #    @scope[id] = real
+    #  elsif not (real = @scope[id]) == id
+    #    # Alias reference
+    #    "_(#{id})#{real}"
+    #  else
+    #    # Plain identifier
+    #    id
+    #  end
+    #end
+
+    ## Label, static or global
+    #def on_label(text, match)
+    #  # Start a new local scope
+    #  @scope = @root.subscope(text)
+
+    #  # Detect if this is a function label
+    #  fn = !!match[:fn]
+
+    #  # Redefine scope with CPP, possibly start function with asm macro
+    #  <<~END
+    #    // #{match}
+    #    #ifdef scope
+    #    #undef scope
+    #    #endif
+    #    #define scope #{text}
+    #    # #{@line} #{@file}
+    #    #{fn ? ".fn scope" : "scope"}
+    #  END
+    #end
+
+    ## Local symbol
+    #def on_local(text, match)
+    #  if @scope.name
+    #    "L.#{text}"
+    #  else
+    #    ".LL#{text}"
+    #  end
+    #  #if @scope.name
+    #  #  ".L.#{@scope.name}.#{text}"
+    #  #else
+    #  #  ".L#{text}"
+    #  #end
+    #end
+
+    # Effective Address Begin
+    def on_ea_begin(text, match)
+      "#{match[:pre]}("
+    end
+
+    # Effective Address End
+    def on_ea_end(text, match)
+      ")#{match[:post]}"
     end
   end
 
