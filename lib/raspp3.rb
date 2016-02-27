@@ -72,9 +72,9 @@ module Raspp
     }mx
 
     def each_line(input)
-      index  = 1   # line number
-      height = 1
-      prior  = nil # continued line
+      index  = 1    # line number
+      height = 1    # count of raw lines in this logical line
+      prior  = nil  # continued prior line, if any
 
       input.scan(LINES) do |text, eol|
         # Count raw lines
@@ -137,57 +137,6 @@ module Raspp
       text
     end
 
-    #def process(input)
-    #  prior = nil
-
-    #  input.scan(LINES) do |text, eol|
-    #    # Count real lines in this logical line
-    #    height = 1
-    #    text.scan(EOL) { height += 1 }
-
-    #    # Remove comment
-    #    text.gsub!(COMMENT, '\\k<keep>')
-
-    #    # Apply prior line continuation
-    #    if prior
-    #      text.sub!(INDENT, '')
-    #      text = prior << text
-    #    end
-
-    #    # Expand function-like macro invocations
-    #    text.gsub!(FCALL) { |text|
-    #      puts "#{$~[:name].inspect}: #{$~[:args].inspect} [#{$~[:code].inspect}]"
-
-    #      if $~[:name]
-    #        "fcall"
-    #      else
-    #        text
-    #      end
-    #    }
-
-    #    # Expand directive-like macro invocations
-    #    text.gsub!(DCALL) { |text|
-    #      puts "#{$~[:name].inspect}: #{$~[:args].inspect} at #{$~[:labels].inspect}"
-
-    #      if $~[:name]
-    #        "dcall"
-    #      else
-    #        text
-    #      end
-    #    }
-
-    #    # Check for line continuation
-    #    if text.end_with?('\\')
-    #      prior = text[0..-2]
-    #    else
-    #      prior = nil
-    #      print "|#{text}|", eol
-    #    end
-
-    #    # Advance position
-    #    @line += height
-    #  end
-    #end
   end
 end
 
