@@ -20,8 +20,8 @@
 #
 
 module Raspp
-  def self.process(input, file = "(stdin)", line = 1)
-    Preprocessor.new(file, line).process(input)
+  def self.process(input, file = "(stdin)")
+    Preprocessor.new(file).process(input)
   end
 
   private
@@ -51,8 +51,8 @@ module Raspp
   }mx
 
   class Preprocessor
-    def initialize(file = "(stdin)", line = 1)
-      @file, @line, @scope = file, line, {}
+    def initialize(file)
+      @file, @scope = file, Scope.new_root
     end
 
     def process(input)
@@ -136,7 +136,39 @@ module Raspp
       end
       text
     end
+  end
 
+  # A scope following these rules:
+  #   * An identifier has exactly one value.
+  #   * A value has exactly one identifier.
+  #   * On a conflicting insert, the older mapping is deleted.
+  #
+  class Scope
+    attr_reader :name, :parent
+
+    def initialize(name, parent = nil)
+      @name, @parent, @k2v, @v2k = name, parent, {}, {}
+    end
+
+    def self.new_root
+      Scope.new(nil)
+    end
+
+    def subscope(name)
+      Scope.new(name, self)
+    end
+
+    def [](key)
+      @k2v[key] or @parent ? @parent[key] : key
+    end
+
+    def []=(key, val)
+      @v2k.delete(@k2v[key]) # Remove map: new key <- old val
+      @k2v.delete(@v2k[val]) # Remove map: old key -> new val
+      @k2v[key] = val
+      @v2k[val] = key
+      val
+    end
   end
 end
 
