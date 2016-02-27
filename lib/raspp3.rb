@@ -132,7 +132,8 @@ module Raspp
     def expand!(text)
       # Expand function-like macro invocations
       text.gsub!(INLINE) do |text|
-        "hi!"
+        m = @scope[$~[:name]]
+        Macro === m ? m.body : m
       end
       text
     end
