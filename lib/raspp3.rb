@@ -138,12 +138,43 @@ module Raspp
     end
   end
 
+  Macro = Struct.new(:name, :params, :body)
+
+  # A scope following these rules:
+  #   * An identifier has exactly one value.
+  #   * A value can have many identifiers.
+  #
+  class Scope
+    attr_reader :name, :parent
+
+    def initialize(name, parent = nil)
+      @name, @parent, @k2v = name, parent, {}
+      self['q'] = Macro.new(:q, [], 'HI!')
+    end
+
+    def self.new_root
+      Scope.new(nil)
+    end
+
+    def subscope(name)
+      Scope.new(name, self)
+    end
+
+    def [](key)
+      @k2v[key] or @parent ? @parent[key] : key
+    end
+
+    def []=(key, val)
+      @k2v[key] = val
+    end
+  end
+
   # A scope following these rules:
   #   * An identifier has exactly one value.
   #   * A value has exactly one identifier.
   #   * On a conflicting insert, the older mapping is deleted.
   #
-  class Scope
+  class BidirectionalScope
     attr_reader :name, :parent
 
     def initialize(name, parent = nil)
