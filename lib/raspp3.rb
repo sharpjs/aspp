@@ -146,12 +146,16 @@ module Raspp
 
       # Expand inline macros
       text.gsub!(INLINE) do |text|
+        # Resolve macro
         macro = @scope[$~[:name]] or next text
-        args  = []
-        $~[:args]&.scan(ARGS) do
-          (arg = expand!($&)).strip!
-          args << arg
+
+        # Expand and split arguments
+        args = []
+        if (text = $~[:args])
+          expand!(text).scan(ARGS) { args << $&.strip }
         end
+
+        # Expand macro with arguments
         macro.expand(args)
       end
 
@@ -180,6 +184,7 @@ module Raspp
       @body.gsub(IDS) do |id|
         n = @params[$~[:id]] and args[n] or id
       end
+      .tap { |s| $stderr.puts "EXPANDING:\n  #{inspect}\n  |#{s}|" }
     end
 
     def err_arity(args)
@@ -198,8 +203,8 @@ module Raspp
 
     def initialize(name, parent = nil)
       @name, @parent, @k2v = name, parent, {}
-      self['q'] = Macro.new('q', ['x', 'y'], '<This is Q with x and y, yo.>')
-      self['z'] = Macro.new('z', ['o', 'p'], '<This is Z with o and p, yo.>')
+      self['q'] = Macro.new('q', ['x', 'y'], '<This is Q with x and y ... yo.>')
+      self['z'] = Macro.new('z', ['o', 'p'], '<This is Z with o and p ... yo.>')
     end
 
     def self.new_root
