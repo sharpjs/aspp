@@ -26,16 +26,17 @@ module Raspp
 
   private
 
-  WS  = '[ \t]'
-  ID  = '(?> (?!\d) [\w.$]++ )'
+  WS = '[ \t]'
+  ID = '(?> \b (?!\d) [\w.$]++ )'
 
+  EOL    = / \n | \r\n?+ /mx
+  INDENT = / \A #{WS}*+  /mx
+
+  # Quotes
   BQ    = %r{ ` (?: [^`]           )*+ `?+ }mx
   SQ    = %r{ ' (?: [^'\\] | \\.?+ )*+ '?+ }mx
   DQ    = %r{ " (?: [^"\\] | \\.?+ )*+ "?+ }mx
   QUOTE = %r{ #{SQ} | #{DQ} | #{BQ} }mx
-
-  EOL    = / \n | \r\n?+ /mx
-  INDENT = / \A #{WS}*+  /mx
 
   # Logical lines (after contiunation and comment removal)
   LINES = %r{
@@ -61,6 +62,12 @@ module Raspp
     (?<=\A|,) #{CODE}*+
   }mx
 
+  IDS = %r{
+    (?<id>#{ID})
+  | 
+    #{QUOTE} (?# excluded #)
+  }mx
+
   # Function-like macro invocation
   INLINE = %r{
     (?<name>#{ID})
@@ -68,7 +75,7 @@ module Raspp
       \( (?<args>(?:,|#{CODE})*+) \)
     )?+
   | 
-    #{QUOTE} (?# exempt from expansion #)
+    #{QUOTE} (?# excluded #)
   }mx
 
   # Statement-like macro invocation
@@ -141,7 +148,10 @@ module Raspp
       text.gsub!(INLINE) do |text|
         macro = @scope[$~[:name]] or next text
         args  = []
-        $~[:args]&.scan(ARGS) { args << $& }
+        $~[:args]&.scan(ARGS) do
+          (arg = expand!($&)).strip!
+          args << arg
+        end
         macro.expand(args)
       end
 
@@ -150,26 +160,32 @@ module Raspp
   end
 
   class Macro
-    attr_reader :name, :arity
+    attr_reader :name, :params, :body
 
     def initialize(name, params, body)
       @name   = name
-      @params = params
+      @params = params.each_with_index.to_h
       @body   = body
-      @arity  = params.length
-      @regexp = Regexp.new(params.map { |p| Regexp.escape(p) }.join('|'))
+    end
+
+    def arity
+      @params.length
     end
 
     def expand(args)
-      args.length == @arity or err_arity(args)
-      map = Hash[@params.zip(args)]
-      @body.gsub(@regexp, map)
+      # Arity check
+      args.length == arity or err_arity(args)
+
+      # Substitute args into body
+      @body.gsub(IDS) do |id|
+        n = @params[$~[:id]] and args[n] or id
+      end
     end
 
     def err_arity(args)
-      raise PreprocessorError, <<~END
-        macro '#{name}' requires #{arity} arguments, but #{args.length} were given.
-      END
+      raise PreprocessorError,
+        "macro '#{name}' requires #{arity} arguments, " +
+        "but #{args.length} were given."
     end
   end
 
@@ -182,7 +198,8 @@ module Raspp
 
     def initialize(name, parent = nil)
       @name, @parent, @k2v = name, parent, {}
-      self['q'] = Macro.new('q', ['x', 'y'], 'HI! with x and y yo.')
+      self['q'] = Macro.new('q', ['x', 'y'], '<This is Q with x and y, yo.>')
+      self['z'] = Macro.new('z', ['o', 'p'], '<This is Z with o and p, yo.>')
     end
 
     def self.new_root
@@ -252,18 +269,11 @@ end
 #
 # - scoped macros
 # - scoped labels
-# -
+#
 # - Replace [ ] with ()
 # - Add # to numbers
 # - Replace ++ and --
 # - Replace 'a' with 'a
-#
-#
-# macros[name] => string
-#              || { |args| expr }
-#
-# .align
-# .scope fpc_send_byte
 #
 
 if __FILE__ == $0
