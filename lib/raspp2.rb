@@ -157,8 +157,10 @@ module Raspp
       code
     end
 
-    def on_term(text, match)
-      text
+    def on_term(id, match)
+      if match[:is_local]
+        id
+      end
     end
 
     def on_sigil(sigil, match)
