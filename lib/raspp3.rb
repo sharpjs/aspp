@@ -37,17 +37,51 @@ module Raspp
   EOL    = / \n | \r\n?+ /mx
   INDENT = / \A #{WS}*+  /mx
 
+  # Logical lines (after contiunation and comment removal)
+  LINES = %r{
+    \G (?!\z)
+    (?<text> (?: [^ \t\r\n`'";] | [ \t]++(?!;) | #{QUOTE} )*+ )
+    (?:      [ \t]*+ ; [^\r\n]*+ )?+
+    (?<eol>  #{EOL} | \z )
+  }mx
+
   # Code with balanced punctuators
   CODE = %r{
     (?<code>
-      (?:
-        [^\[\]\(\)\{\}`'"] |
-        #{QUOTE}       |
-        \[ \g<code> \] |
-        \( \g<code> \) |
-        \{ \g<code> \}
-      )*+
+      [^\[\]\(\)\{\}`'",]    |
+      #{QUOTE}               |
+      \[ (?:,|\g<code>)*+ \] |
+      \( (?:,|\g<code>)*+ \) |
+      \{ (?:,|\g<code>)*+ \}
     )
+  }mx
+
+  # Macro arguments
+  ARGS = %r{
+    (?<=\A|,) #{CODE}*+
+  }mx
+
+  # Function-like macro invocation
+  INLINE = %r{
+    (?<name>#{ID})
+    (?:
+      \( (?<args>(?:,|#{CODE})*+) \)
+    )?+
+  | 
+    #{QUOTE} (?# exempt from expansion #)
+  }mx
+
+  # Statement-like macro invocation
+  STMT = %r{
+    \A
+    (?<indent> #{INDENT} )
+    (?<labels> (?: #{ID}: #{WS}*+ )*+ )
+    (?<name>   #{ID} )
+    (?:
+      #{WS}++
+      (?<args> (?:,|#{CODE})*+ )
+    )?
+    \z
   }mx
 
   class Preprocessor
@@ -61,16 +95,7 @@ module Raspp
       end
     end
 
-    # Phase 1: Line Processing
-
-    # Logical lines (after contiunation and comment removal)
-    LINES = %r{
-      \G (?!\z)
-      (?<text> (?: [^ \t\r\n`'";] | [ \t]++(?!;) | #{QUOTE} )*+ )
-      (?:      [ \t]*+ ; [^\r\n]*+ )?+
-      (?<eol>  #{EOL} | \z )
-    }mx
-
+    # Scan logical lines & handle errors
     def each_line(input)
       index  = 1    # line number
       height = 1    # count of raw lines in this logical line
@@ -101,45 +126,52 @@ module Raspp
         prior  = nil
       end
 
-      # In case of line continuation at EOF
-      if prior
-        yield index, prior
-      end
+      # Handle continued line at EOF: pass to next stage
+      yield index, prior if prior
+
+    rescue PreprocessorError
+      $stderr.puts "#{@file}:#{index}: error: #{$!}"
+      exit 1
     end
 
-    # Phase 2: Macro Expansion
-
-    # Function-like macro invocation
-    INLINE = %r{
-      (?<name>#{ID}) (?: #{WS}*+ \( (?<args>#{CODE}) \) )?+
-    | 
-      #{QUOTE} (?# exempt from expansion #)
-    }mx
-
-    # Statement-like macro invocation
-    STMT = %r{
-      \A
-      (?<indent> #{INDENT} )
-      (?<labels> (?: #{ID}: #{WS}*+ )*+ )
-      (?<name>   #{ID} )
-      (?:
-        #{WS}++
-        (?<args> #{CODE} )
-      )?
-      \z
-    }mx
-
+    # Expand macros in a string
     def expand!(text)
-      # Expand function-like macro invocations
+
+      # Expand inline macros
       text.gsub!(INLINE) do |text|
-        m = @scope[$~[:name]]
-        Macro === m ? m.body : m
+        macro = @scope[$~[:name]] or next text
+        args  = []
+        $~[:args]&.scan(ARGS) { args << $& }
+        macro.expand(args)
       end
+
       text
     end
   end
 
-  Macro = Struct.new(:name, :params, :body)
+  class Macro
+    attr_reader :name, :arity
+
+    def initialize(name, params, body)
+      @name   = name
+      @params = params
+      @body   = body
+      @arity  = params.length
+      @regexp = Regexp.new(params.map { |p| Regexp.escape(p) }.join('|'))
+    end
+
+    def expand(args)
+      args.length == @arity or err_arity(args)
+      map = Hash[@params.zip(args)]
+      @body.gsub(@regexp, map)
+    end
+
+    def err_arity(args)
+      raise PreprocessorError, <<~END
+        macro '#{name}' requires #{arity} arguments, but #{args.length} were given.
+      END
+    end
+  end
 
   # A scope following these rules:
   #   * An identifier has exactly one value.
@@ -150,7 +182,7 @@ module Raspp
 
     def initialize(name, parent = nil)
       @name, @parent, @k2v = name, parent, {}
-      self['q'] = Macro.new(:q, [], 'HI!')
+      self['q'] = Macro.new('q', ['x', 'y'], 'HI! with x and y yo.')
     end
 
     def self.new_root
@@ -162,7 +194,7 @@ module Raspp
     end
 
     def [](key)
-      @k2v[key] or @parent ? @parent[key] : key
+      @k2v[key] or @parent &.[] key
     end
 
     def []=(key, val)
@@ -202,6 +234,8 @@ module Raspp
       val
     end
   end
+
+  class PreprocessorError < StandardError; end
 end
 
 #
