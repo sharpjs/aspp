@@ -23,11 +23,11 @@
 # - ; comments
 # - line continuation
 # - Inline macros
+# - Inline macro definitions
 # - Statement macros
 #
 # FUTURE FEATURES
 #
-# - Identifier macros
 # - Inline ruby code
 # - Scoped macros
 # - Scoped identifiers
@@ -92,6 +92,8 @@ module Raspp
     (?<name>#{ID})
     (?:
       \( (?<args>(?:,|#{CODE})*+) \)
+    |
+      (?>#{WS}*=>#{WS}*) (?<def>#{ID})
     )?+
   | 
     #{QUOTE} (?# excluded #)
@@ -168,17 +170,24 @@ module Raspp
     # Expand inline macros
     def expand_inline!(text)
       text.gsub!(INLINE) do |text|
-        # Resolve macro
-        macro = @scope.i_macros[$~[:name]] or next text
+        if (body = $~[:def])
+          # Inline definition
+          name = $~[:name]
+          @scope.i_macros[name] = Macro.new(name, [], body)
+          body
+        else
+          # Resolve macro
+          macro = @scope.i_macros[$~[:name]] or next text
 
-        # Expand and split arguments
-        args = []
-        if (text = $~[:args])
-          expand_inline!(text).scan(ARGS) { args << $&.strip }
+          # Expand and split arguments
+          args = []
+          if (text = $~[:args])
+            expand_inline!(text).scan(ARGS) { args << $&.strip }
+          end
+
+          # Expand macro with arguments
+          macro.expand(args)
         end
-
-        # Expand macro with arguments
-        macro.expand(args)
       end
       text
     end
