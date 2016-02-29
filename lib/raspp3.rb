@@ -93,7 +93,7 @@ module Raspp
     (?:
       \( (?<args>(?:,|#{CODE})*+) \)
     |
-      (?>#{WS}*=>#{WS}*) (?<def>#{ID})
+      (?>#{WS}*=>#{WS}*) (?<body>#{ID})
     )?+
   | 
     #{QUOTE} (?# excluded #)
@@ -110,6 +110,9 @@ module Raspp
     )?+
     \z (?# eol #)
   }mx
+
+  # Statement labels
+  LABEL_SEP = /:#{WS}*+/
 
   class Preprocessor
     def initialize(file)
@@ -169,20 +172,20 @@ module Raspp
 
     # Expand inline macros
     def expand_inline!(text)
-      text.gsub!(INLINE) do |text|
-        if (body = $~[:def])
+      text.gsub!(INLINE) do |chunk|
+        if (body = $~[:body])
           # Inline definition
           name = $~[:name]
           @scope.i_macros[name] = Macro.new(name, [], body)
           body
         else
           # Resolve macro
-          macro = @scope.i_macros[$~[:name]] or next text
+          macro = @scope.i_macros[$~[:name]] or next chunk
 
           # Expand and split arguments
           args = []
-          if (text = $~[:args])
-            expand_inline!(text).scan(ARGS) { args << $&.strip }
+          if (_args = $~[:args])
+            expand_inline!(_args).scan(ARGS) { args << $&.strip }
           end
 
           # Expand macro with arguments
@@ -194,15 +197,22 @@ module Raspp
 
     # Expand statement macros
     def expand_stmt!(text)
-      text.sub!(STMT) do |text|
+      text.sub!(STMT) do |chunk|
         # Resolve macro
-        macro = @scope.s_macros[$~[:name]] or next text
+        macro = @scope.s_macros[$~[:name]] or next chunk
 
-        # Split arguments
-        args = []
-        if (text = $~[:args])
-          text.scan(ARGS) { args << $&.strip }
+        # Prepare for arguments
+        args    = []
+        _labels = $~[:labels]
+        _args   = $~[:args]
+
+        # Recombine labels for first argument
+        if macro.arity
+          args << (_labels&.gsub(LABEL_SEP, " ") || "")
         end
+
+        # Split further arguments
+        _args&.scan(ARGS) { args << $&.strip }
 
         # Expand macro with arguments
         macro.expand(args)
