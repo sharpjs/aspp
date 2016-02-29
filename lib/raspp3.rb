@@ -23,10 +23,10 @@
 # - ; comments
 # - line continuation
 # - Inline macros
+# - Statement macros
 #
 # FUTURE FEATURES
 #
-# - Statement macros
 # - Identifier macros
 # - Inline ruby code
 # - Scoped macros
