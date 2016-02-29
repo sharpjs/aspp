@@ -239,7 +239,7 @@ end
 if __FILE__ == $0
   # Running as script
   loop do
-    ASPP::process(ARGF.file.read, ARGF.filename)
+    Raspp::process(ARGF.file.read, ARGF.filename)
     ARGF.skip
     break if ARGV.empty?
   end
