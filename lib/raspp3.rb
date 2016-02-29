@@ -60,8 +60,8 @@ module Raspp
   # Logical lines (after contiunation and comment removal)
   LINES = %r{
     \G (?!\z)
-    (?<text> (?: [^ \t\r\n`'";] | [ \t]++(?!;) | #{QUOTE} )*+ )
-    (?:      [ \t]*+ ; [^\r\n]*+ )?+
+    (?<text> (?: [^ \t\r\n`'";] | #{WS}++(?!;) | #{QUOTE} )*+ )
+    (?:      #{WS}*+ ; [^\r\n]*+ )?+
     (?<eol>  #{EOL} | \z )
   }mx
 
@@ -161,7 +161,6 @@ module Raspp
 
     # Expand macros in a line 
     def expand!(text)
-      $stderr.puts text.inspect
       expand_inline! text
       expand_stmt!   text
     end
@@ -224,7 +223,6 @@ module Raspp
       @body.gsub(IDS) do |id|
         n = @params[$~[:id]] and args[n] or id
       end
-      .tap { |s| $stderr.puts "EXPANDING:\n  #{inspect}\n  |#{s}|" }
     end
 
     def err_arity(args)
