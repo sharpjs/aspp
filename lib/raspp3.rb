@@ -99,15 +99,14 @@ module Raspp
 
   # Statement-like macro invocation
   STMT = %r{
-    \A
     (?<indent> #{INDENT} )
     (?<labels> (?: #{ID}: #{WS}*+ )*+ )
     (?<name>   #{ID} )
     (?:
       #{WS}++
-      (?<args> (?:,|#{CODE})*+ )
-    )?
-    \z
+      (?<args> (?:,|#{CODE})++ )
+    )?+
+    \z (?# eol #)
   }mx
 
   class Preprocessor
@@ -160,24 +159,46 @@ module Raspp
       exit 1
     end
 
-    # Expand macros in a string
+    # Expand macros in a line 
     def expand!(text)
+      $stderr.puts text.inspect
+      expand_inline! text
+      expand_stmt!   text
+    end
 
-      # Expand inline macros
+    # Expand inline macros
+    def expand_inline!(text)
       text.gsub!(INLINE) do |text|
         # Resolve macro
-        macro = @scope[$~[:name]] or next text
+        macro = @scope.i_macros[$~[:name]] or next text
 
         # Expand and split arguments
         args = []
         if (text = $~[:args])
-          expand!(text).scan(ARGS) { args << $&.strip }
+          expand_inline!(text).scan(ARGS) { args << $&.strip }
         end
 
         # Expand macro with arguments
         macro.expand(args)
       end
+      text
+    end
 
+    # Expand statement macros
+    def expand_stmt!(text)
+      text.sub!(STMT) do |text|
+        # Resolve macro
+        macro = @scope.s_macros[$~[:name]] or next text
+
+        # Split arguments
+        args = []
+        if (text = $~[:args])
+          text.scan(ARGS) { args << $&.strip }
+        end
+
+        # Expand macro with arguments
+        macro.expand(args)
+      end
       text
     end
   end
@@ -213,18 +234,8 @@ module Raspp
     end
   end
 
-  # A scope following these rules:
-  #   * An identifier has exactly one value.
-  #   * A value can have many identifiers.
-  #
   class Scope
-    attr_reader :name, :parent
-
-    def initialize(name, parent = nil)
-      @name, @parent, @k2v = name, parent, {}
-      self['q'] = Macro.new('q', ['x', 'y'], '<This is Q with x and y ... yo.>')
-      self['z'] = Macro.new('z', ['o', 'p'], '<This is Z with o and p ... yo.>')
-    end
+    attr_reader :name, :parent, :i_macros, :s_macros
 
     def self.new_root
       Scope.new(nil)
@@ -232,6 +243,35 @@ module Raspp
 
     def subscope(name)
       Scope.new(name, self)
+    end
+
+    private
+
+    def initialize(name, parent = nil)
+      @name     = name
+      @parent   = parent
+      @i_macros = Lookup.new(parent&.i_macros)
+      @s_macros = Lookup.new(parent&.s_macros)
+
+      i_macros['q'] = Macro.new('q', ['x', 'y'], '<This is Q with x and y ... yo.>')
+      i_macros['z'] = Macro.new('z', ['o', 'p'], '<This is Z with o and p ... yo.>')
+
+      s_macros['and$.l'] = Macro.new(
+        'and$.l', ['s', 'd'], 'foobar s, d'
+      )
+    end
+  end
+
+  # A lookup table following these rules:
+  #   * An identifier has exactly one value.
+  #   * A value can have many identifiers.
+  #
+  class Lookup
+    attr_reader :parent
+
+    def initialize(parent = nil)
+      @parent = parent
+      @k2v    = {}
     end
 
     def [](key)
@@ -243,24 +283,18 @@ module Raspp
     end
   end
 
-  # A scope following these rules:
+  # A lookup table following these rules:
   #   * An identifier has exactly one value.
   #   * A value has exactly one identifier.
   #   * On a conflicting insert, the older mapping is deleted.
   #
-  class BidirectionalScope
-    attr_reader :name, :parent
+  class BidirectionalLookup
+    attr_reader :parent
 
     def initialize(name, parent = nil)
-      @name, @parent, @k2v, @v2k = name, parent, {}, {}
-    end
-
-    def self.new_root
-      Scope.new(nil)
-    end
-
-    def subscope(name)
-      Scope.new(name, self)
+      @parent = parent
+      @k2v    = {}
+      @v2k    = {}
     end
 
     def [](key)
