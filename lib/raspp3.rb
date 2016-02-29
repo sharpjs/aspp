@@ -18,6 +18,25 @@
 # You should have received a copy of the GNU General Public License
 # along with raspp.  If not, see <http://www.gnu.org/licenses/>.
 #
+# IMPLEMENTED FEATURES
+#
+# - ; comments
+# - line continuation
+# - Inline macros
+#
+# FUTURE FEATURES
+#
+# - Statement macros
+# - Identifier macros
+# - Inline ruby code
+# - Scoped macros
+# - Scoped identifiers
+#
+# - Replace [ ] with ()
+# - Add # to numbers
+# - Replace ++/-- with +/-
+# - Replace 'a' with 'a
+#
 
 module Raspp
   def self.process(input, file = "(stdin)")
@@ -259,27 +278,6 @@ module Raspp
 
   class PreprocessorError < StandardError; end
 end
-
-#
-# FEATURES
-#
-# * ; comments
-# * line continuation
-#
-# - Directive-like macros
-# - Function-like macros
-# - Token-like macros
-# - Inline token-like macro def
-# - Inline code
-#
-# - scoped macros
-# - scoped labels
-#
-# - Replace [ ] with ()
-# - Add # to numbers
-# - Replace ++ and --
-# - Replace 'a' with 'a
-#
 
 if __FILE__ == $0
   # Running as script
