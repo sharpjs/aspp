@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# encoding: UTF-8
+# frozen_string_literal: true
 #
 # raspp.rb - Assembly Preprocessor in Ruby
 # Copyright (C) 2016 Jeffrey Sharp
@@ -91,7 +93,7 @@ module Raspp
 
   class Preprocessor
     def initialize(file = "(stdin)", line = 1)
-      @file, @line, @aliases, @script = file, line, {}, ''
+      @file, @line, @aliases, @script = file, line, {}, ''.dup
     end
 
     def process(input)
@@ -168,7 +170,7 @@ module Raspp
 
     def update_aliases(depth, *toks)
       @aliases.delete_if do |name, a|
-        text = toks.reduce(a[:text], :<<)
+        text = toks.reduce(a[:text].dup, :<<)
 
         #scope[name] = text.lstrip if (a[:depth] += depth) <= 0
         flush_text
@@ -188,7 +190,7 @@ module Raspp
     end
 
     def print(*strs)
-      strs.reduce(@text ||= '') { |t, s| t << s.inspect[1..-2] }
+      strs.reduce(@text ||= ''.dup) { |t, s| t << s.inspect[1..-2] }
     end
 
     def flush_text
