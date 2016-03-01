@@ -26,11 +26,10 @@
 # - Inline macro definitions
 # - Statement macros
 # - Scoped macros
+# - Replace [ [++ [-- --] ++] ]
+#   ...with (  +(  -( )-  )+  )
 #
 # FUTURE FEATURES
-#
-# - Replace [ ] with ()
-# - Replace ++/-- with +/-
 #
 # - Scoped identifiers  (not needed for vasm)
 # - Replace 'a' with 'a (not needed for vasm)
