@@ -50,28 +50,30 @@ module Raspp
   private
 
   WS  = '[ \t]*+'
-  ANY = '[^\n\r]*+'
+  ANY = '[^\r\n]*+'
   BOL = '(?<=\n|\r|\r\n|\A)'
   EOL = '(?:\n|\r\n?|\z)'
 
-  TOKENS = /\G
-    (?: #{BOL} #{WS} @ (?<ruby> #{ANY} #{EOL} ) # ruby line
-      | (?<ws> #{WS} )                          # whitespace
-        (?<tok> \n | \r\n?                      # end of line
-          | [a-zA-Z_.] [\w.]*+ \$?              # identifier
-          | \d++                                # number literal (base 10)
-          | \$ \h*+                             # number literal (base 16)
-          | % [01]*+                            # number literal (base  2)
-          | ` (?: [^`]           )*+ `?         # inline ruby    (`)
-          | ' (?: [^\\'] | \\.?+ )*+ '?         # string literal (')
-          | " (?: [^\\"] | \\.?+ )*+ "?         # string literal (")
-          | ; #{ANY}                            # comment
-          | \\ #{WS} (?:;#{ANY})? #{EOL} #{WS}  # continued line
-          | [@\[\](){}]                         # punctuators
-          | [^ \t\r\n\w.$%`'";@\[\](){}]++      # other
+  TOKENS = %r{ \G
+    (?:
+      #{BOL} #{WS} @ (?<ruby> #{ANY} #{EOL} )   # ruby line
+    |
+      (?<ws> #{WS} )                            # whitespace
+      (?<tok>                                   # token:
+        (?: \n | \r\n?+                         # - end of line
+          | (?!\d) [\w.]++ \$?+                 # - identifier
+          | [\d$%] [\w.]*+                      # - number literal
+          | ` (?: [^`]           )*+ `?+        # - inline ruby    (`)
+          | ' (?: [^\\'] | \\.?+ )*+ '?+        # - string literal (')
+          | " (?: [^\\"] | \\.?+ )*+ "?+        # - string literal (")
+          | ; #{ANY}                            # - comment
+          | \\ #{WS} (?:;#{ANY})? #{EOL} #{WS}  # - continued line
+          | [@\[\](){}]                         # - punctuators
+          | [^ \t\r\n\w.$%`'";@\[\](){}]++      # - other
         )
+      )
     )
-  /mx
+  }mx
 
   TOKEN_TYPES = {}.tap do |types|
     {
