@@ -29,12 +29,13 @@
 #
 # FUTURE FEATURES
 #
-# - Scoped identifiers (not needed in vasm)
 # - Replace [ ] with ()
-# - Add # to numbers
 # - Replace ++/-- with +/-
-# - Replace 'a' with 'a
-# - Inline ruby code
+#
+# - Scoped identifiers  (not needed for vasm)
+# - Replace 'a' with 'a (not needed for vasm)
+# - Add # to numbers    (unsure if a good idea)
+# - Inline ruby code    (unsure if a good idea)
 #
 
 module Raspp
@@ -110,10 +111,17 @@ module Raspp
     \z (?# eol #)
   }mx
 
-  SCOPE_BEGIN = %r{ #{INDENT} (?!\.) (?<name>#{ID}) : }mx
-
   # Statement labels
   LABEL_SEP = /:#{WS}*+/
+
+  SCOPE_BEGIN = %r{ #{INDENT} (?!\.) (?<name>#{ID}) : }x
+
+  # Effective address brackets
+  BRACKETS = %r{
+    (?<tok>\[) (?: (?<auto>[-+]) \k<auto> )?+
+  |
+    (?: (?<auto>[-+]) \k<auto> )?+ (?<tok>\])
+  }x
 
   class Preprocessor
     def initialize(file)
@@ -173,6 +181,7 @@ module Raspp
       end
       expand_inline! text
       expand_stmt!   text
+      expand_other!  text
     end
 
     def leave_scope
@@ -229,6 +238,17 @@ module Raspp
 
         # Expand macro with arguments
         macro.expand(args)
+      end
+      text
+    end
+
+    # Perform miscellaneous expansions
+    def expand_other!(text)
+      text.gsub!(BRACKETS) do
+        case $~[:tok]
+        when '[' then  "#{$~[:auto]}("
+        when ']' then ")#{$~[:auto]}"
+        end
       end
       text
     end
