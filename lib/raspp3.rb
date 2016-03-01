@@ -129,7 +129,7 @@ module Raspp
 
     def process(input)
       each_line(input) do |n, line|
-        puts "#{n}: |#{expand!(line)}|"
+        puts expand!(line)
       end
     end
 
