@@ -25,17 +25,16 @@
 # - Inline macros
 # - Inline macro definitions
 # - Statement macros
+# - Scoped macros
 #
 # FUTURE FEATURES
 #
-# - Inline ruby code
-# - Scoped macros
-# - Scoped identifiers
-#
+# - Scoped identifiers (not needed in vasm)
 # - Replace [ ] with ()
 # - Add # to numbers
 # - Replace ++/-- with +/-
 # - Replace 'a' with 'a
+# - Inline ruby code
 #
 
 module Raspp
@@ -111,6 +110,8 @@ module Raspp
     \z (?# eol #)
   }mx
 
+  SCOPE_BEGIN = %r{ #{INDENT} (?!\.) (?<name>#{ID}) : }mx
+
   # Statement labels
   LABEL_SEP = /:#{WS}*+/
 
@@ -166,8 +167,20 @@ module Raspp
 
     # Expand macros in a line 
     def expand!(text)
+      if text =~ SCOPE_BEGIN
+        leave_scope
+        enter_scope $~[:name]
+      end
       expand_inline! text
       expand_stmt!   text
+    end
+
+    def leave_scope
+      @scope = @scope.parent unless @scope.root?
+    end
+
+    def enter_scope(name)
+      @scope = @scope.subscope(name)
     end
 
     # Expand inline macros
@@ -260,6 +273,10 @@ module Raspp
 
     def subscope(name)
       Scope.new(name, self)
+    end
+
+    def root?
+      parent.nil?
     end
 
     private
