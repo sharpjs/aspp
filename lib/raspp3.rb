@@ -27,7 +27,7 @@
 # - Statement macros
 # - Scoped macros
 # - Replace [ [++ [-- --] ++] ]
-#   ...with (  +(  -( )-  )+  )
+#      with (  +(  -( )-  )+  )
 #
 # FUTURE FEATURES
 #
@@ -54,12 +54,13 @@ module Raspp
   BQ    = %r{ ` (?: [^`]           )*+ `?+ }mx
   SQ    = %r{ ' (?: [^'\\] | \\.?+ )*+ '?+ }mx
   DQ    = %r{ " (?: [^"\\] | \\.?+ )*+ "?+ }mx
-  QUOTE = %r{ #{SQ} | #{DQ} | #{BQ} }mx
+  RUBY  = %r{ ^\#ruby\n .*? ^\#endr$ }mx
+  QUOTE = %r{ #{SQ} | #{DQ} | #{BQ} | #{RUBY} }mx
 
   # Logical lines (after contiunation and comment removal)
   LINES = %r{
     \G (?!\z)
-    (?<text> (?: [^ \t\r\n`'";] | #{WS}++(?!;) | #{QUOTE} )*+ )
+    (?<text> (?: [^ \t\r\n`'"#;] | #{WS}++(?!;) | #{QUOTE} | \# )*+ )
     (?:      #{WS}*+ ; [^\r\n]*+ )?+
     (?<eol>  #{EOL} | \z )
   }mx
@@ -129,7 +130,11 @@ module Raspp
 
     def process(input)
       each_line(input) do |n, line|
-        puts expand!(line)
+        if line.start_with?('#')
+          process_directive(line)
+        else
+          puts expand!(line)
+        end
       end
     end
 
@@ -170,6 +175,16 @@ module Raspp
     rescue PreprocessorError
       $stderr.puts "#{@file}:#{index}: error: #{$!}"
       exit 1
+    end
+
+    def process_directive(text)
+      case text
+      when /\A\#ruby\n (?<ruby>.*?) ^\#endr\Z/mx
+        eval $~[:ruby]
+      else
+        raise PreprocessorError,
+          "unrecognized preprocessor directive: #{text}"
+      end
     end
 
     # Expand macros in a line 
