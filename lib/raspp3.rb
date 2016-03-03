@@ -147,6 +147,8 @@ module Raspp
       prior  = nil  # continued prior line, if any
 
       input.scan(LINES) do |text, eol|
+        #$stderr.puts "#{index}: |#{text}|"
+
         # Count raw lines
         text.scan(EOL) { height += 1 }
 
@@ -329,13 +331,6 @@ module Raspp
       @parent   = parent
       @i_macros = Lookup.new(parent&.i_macros)
       @s_macros = Lookup.new(parent&.s_macros)
-
-      i_macros['q'] = Macro.new('q', ['x', 'y'], '<This is Q with x and y ... yo.>')
-      i_macros['z'] = Macro.new('z', ['o', 'p'], '<This is Z with o and p ... yo.>')
-
-      s_macros['and$.l'] = Macro.new(
-        'and$.l', ['s', 'd'], 'foobar s, d'
-      )
     end
   end
 
