@@ -57,8 +57,6 @@ module Raspp
   PQ    = %r{ ^\#ruby\n .*? ^\#endr$ }mx
   QUOTE = %r{ #{SQ} | #{DQ} | #{BQ} | #{PQ} }mx
 
-  RUBY  = %r{ \A\#ruby\n (?<ruby>.*?) ^\#endr\Z }mx
-
   # Logical lines (after contiunation and comment removal)
   LINES = %r{
     \G (?!\z)
@@ -66,6 +64,8 @@ module Raspp
     (?:      #{WS}*+ ; [^\r\n]*+ )?+
     (?<eol>  #{EOL} | \z )
   }mx
+
+  RUBY  = %r{ \A\#ruby\n (?<ruby>.*?) ^\#endr\Z }mx
 
   # Code with balanced punctuators
   CODE = %r{
@@ -182,11 +182,18 @@ module Raspp
     def process_directive(text)
       case text
       when RUBY
-        eval $~[:ruby], TOPLEVEL_BINDING
+        eval_ruby $~[:ruby]
       else
         raise PreprocessorError,
           "unrecognized preprocessor directive: #{text}"
       end
+    end
+
+    def eval_ruby(code)
+      env = Object.new
+      env.instance_variable_set :@scope, @scope
+      env.instance_eval code
+      nil
     end
 
     # Expand macros in a line 
