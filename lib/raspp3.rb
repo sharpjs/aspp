@@ -54,8 +54,10 @@ module Raspp
   BQ    = %r{ ` (?: [^`]           )*+ `?+ }mx
   SQ    = %r{ ' (?: [^'\\] | \\.?+ )*+ '?+ }mx
   DQ    = %r{ " (?: [^"\\] | \\.?+ )*+ "?+ }mx
-  RUBY  = %r{ ^\#ruby\n .*? ^\#endr$ }mx
-  QUOTE = %r{ #{SQ} | #{DQ} | #{BQ} | #{RUBY} }mx
+  PQ    = %r{ ^\#ruby\n .*? ^\#endr$ }mx
+  QUOTE = %r{ #{SQ} | #{DQ} | #{BQ} | #{PQ} }mx
+
+  RUBY  = %r{ \A\#ruby\n (?<ruby>.*?) ^\#endr\Z }mx
 
   # Logical lines (after contiunation and comment removal)
   LINES = %r{
@@ -179,8 +181,8 @@ module Raspp
 
     def process_directive(text)
       case text
-      when /\A\#ruby\n (?<ruby>.*?) ^\#endr\Z/mx
-        eval $~[:ruby]
+      when RUBY
+        eval $~[:ruby], TOPLEVEL_BINDING
       else
         raise PreprocessorError,
           "unrecognized preprocessor directive: #{text}"
