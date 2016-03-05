@@ -28,7 +28,7 @@
 #
 # Aliases (inline token macros)
 #
-#   move.l v@[8, fp], x@d0
+#   move.l v@(8, fp), x@d0
 #   add.l  #3, x
 #   move.l x, v
 #
