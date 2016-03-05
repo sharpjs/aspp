@@ -114,7 +114,7 @@ module Raspp
   }mx
 
   # Statement labels
-  LABEL_SEP = /:#{WS}*+/
+  LABEL_SEP = %r{:#{WS}*+}x
 
   SCOPE_BEGIN = %r{ #{INDENT} (?!\.) (?<name>#{ID}) : }x
 
@@ -255,7 +255,7 @@ module Raspp
 
         # Recombine labels for first argument
         if macro.arity
-          args << (_labels&.gsub(LABEL_SEP, " ") || "")
+          args << (_labels&.gsub(LABEL_SEP, " ")&.strip || "")
         end
 
         # Split further arguments
