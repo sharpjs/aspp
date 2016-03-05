@@ -54,8 +54,9 @@ module Raspp
   BQ    = %r{ ` (?: [^`]           )*+ `?+ }mx
   SQ    = %r{ ' (?: [^'\\] | \\.?+ )*+ '?+ }mx
   DQ    = %r{ " (?: [^"\\] | \\.?+ )*+ "?+ }mx
-  PQ    = %r{ ^\#ruby\n .*? ^\#endr$ }mx
-  QUOTE = %r{ #{SQ} | #{DQ} | #{BQ} | #{PQ} }mx
+  RQ    = %r{ ^\#ruby  \n .*? ^\#endr$ }mx
+  MQ    = %r{ ^\#macro    .*? ^\#endm$ }mx
+  QUOTE = %r{ #{SQ} | #{DQ} | #{BQ} | #{RQ} | #{MQ} }mx
 
   # Logical lines (after contiunation and comment removal)
   LINES = %r{
@@ -65,7 +66,15 @@ module Raspp
     (?<eol>  #{EOL} | \z )
   }mx
 
-  RUBY  = %r{ \A\#ruby\n (?<ruby>.*?) ^\#endr\Z }mx
+  RUBY = %r{
+    \A \#ruby \n (?<ruby>.*?) ^\#endr \z
+  }mx
+  MACRO = %r{
+    \A \#macro #{WS}++ (?<name>#{ID}) \n (?<body>.*?) ^\#endm \z
+  }mx
+  DEFINE = %r{
+    \A \#define #{WS}++ (?<name>#{ID}) (?: #{WS}++ (?<body>.*+) )?+ \z
+  }mx
 
   # Code with balanced punctuators
   CODE = %r{
@@ -146,7 +155,7 @@ module Raspp
       height = 1    # count of raw lines in this logical line
       prior  = nil  # continued prior line, if any
 
-      input.scan(LINES) do |text, eol|
+      input.scan(LINES) do |text, _|
         #$stderr.puts "#{index}: |#{text}|"
 
         # Count raw lines
@@ -183,12 +192,29 @@ module Raspp
 
     def process_directive(text)
       case text
+      when DEFINE
+        define_inline_macro $~[:name], $~[:body]
+      when MACRO
+        define_statement_macro $~[:name], $~[:body]
       when RUBY
         eval_ruby $~[:ruby]
       else
         raise PreprocessorError,
           "unrecognized preprocessor directive: #{text}"
       end
+    end
+
+    def define_inline_macro(name, body)
+      body.strip!
+      @scope.i_macros[name] = Macro.new(
+        name, [], body
+      )
+    end
+
+    def define_statement_macro(name, body)
+      @scope.s_macros[name] = Macro.new(
+        name, [], body
+      )
     end
 
     def eval_ruby(code)
@@ -254,7 +280,7 @@ module Raspp
         _args   = $~[:args]
 
         # Recombine labels for first argument
-        if macro.arity
+        if macro.arity > 0
           args << (_labels&.gsub(LABEL_SEP, " ")&.strip || "")
         end
 
