@@ -52,7 +52,7 @@ module Raspp
   WS  = '[ \t]*+'
   ANY = '[^\r\n]*+'
   BOL = '(?<=\n|\r|\r\n|\A)'
-  EOL = '(?:\n|\r\n?|\z)'
+  EOL = '(?:\n|\r\n?+|\z)'
 
   TOKENS = %r{ \G
     (?:
