@@ -143,11 +143,11 @@ module Raspp
     def on_eol(match)
       puts
       scope = match[:scope] or return
-      if scope
-        push_scope match[:id]
-        scan_labels match.post_match
-      else
+      if scope.empty?
         pop_scope
+      else
+        push_scope scope
+        scan_labels match.post_match
       end
     end
 
