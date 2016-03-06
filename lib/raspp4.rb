@@ -80,15 +80,16 @@ module Raspp
           )?+
         | (?<id>#{ID}) (?: @ (?<def>#{ID}) )?+  # aliasable identifier
         | [@$] (?<id>#{ID})                     # argument or variable
-        | // .*+                                # ignored: comment
-        | (?: [^\w\n@$./]                       # ignored: misc
+        | // [^\n]*+                            # ignored: comment
+        | (?: [^\w\n@$./\\"]                    # ignored: misc
             | \d \w*+                           # ignored: numbers
             | [@$] (?=\d|[^\w.$]|\z)            # ignored: bare sigils
             | / (?!/)                           # ignored: bare slashes
-            | \\\n                              # ignored: escaped newlines
+            | \\ \n?+                           # ignored: escaped newlines
+            | " (?: [^\\"] | \\.?+ )*+ "?+      # ignored: string literal (")
           )++
       )
-    }x
+    }mx
 
     LABELS = %r{ ^(#{ID}): | ^\}\n }x
 
