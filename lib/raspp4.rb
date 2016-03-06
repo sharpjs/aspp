@@ -20,10 +20,6 @@
 #
 # IMPLEMENTED FEATURES
 #
-# - none
-#
-# FUTURE FEATURES
-#
 # - Scopes with local labels
 #
 #     foo:          #define SCOPE foo
@@ -46,6 +42,8 @@
 #     @foo          ARG(foo)
 #     $bar          VAR(bar)
 #
+# FUTURE FEATURES
+#
 # - Transform character literals
 #
 #     'a'           'a
@@ -53,48 +51,54 @@
 
 module Raspp
   class Processor
+    def initialize
+      @handlers = collect_handlers
+    end
+
     def process(input, file = "(stdin)", line = 1)
+      @input    = input
       @file     = file
       @line     = line
-      @handlers = handlers
+      @scope    = Scope.new(nil)
 
       input.scan(TOKENS) do
+        #p $~
         @handlers[$&[0]].call($~)
-        #$stderr.puts "#{$&.inspect} -> #{$'[0].inspect}"
       end
     end
 
     private
 
-    ID = %r{ (?> (?!\d) [\w.$]++ ) }mx
+    # Identifiers
+    ID = %r{ (?!\d) [\w.$]++ }x
 
+    # Tokens - chunks of text to transform or ignore
     TOKENS = %r{ \G
-      (?: [@$] (?<id>#{ID})                           # argument or variable
-      |   (?<id>#{ID}) (?: @(?<def>#{ID}) )?+         # aliasable identifier
-      |   (?:\n|\A)                                   # newline, then:
-          (?<indent>[ \t]*+)
-          (?<bol>
-            (?<id>#{ID}) (?<lbl>: (?<bos>\n\{(?=\n))?+ )?+          # - label, start of scope
-          | \}\n                                    # - end of scope
-          | \# .*+                                  # - CPP directive
+      (?: \n                                    # end of line, then:
+          (?: (?<scope>#{ID}): \n\{ (?=\n)      # - scope begins
+            | (?<scope>     )  \}\n (?=\n)      # - scope ends
           )?+
-      |   (?: [^\w\n@$./]                             # ignored, including:
-          |   \d \w*+                                 # - numbers
-          |   [@$] (?=\d|[^\w.$]|\z)                  # - bare sigils
-          |   / (?!/)                                 # - bare slashes
-          |   \\\n                                    # - escaped newlines
+        | (?<id>#{ID}) (?: @ (?<def>#{ID}) )?+  # aliasable identifier
+        | [@$] (?<id>#{ID})                     # argument or variable
+        | // .*+                                # ignored: comment
+        | (?: [^\w\n@$./]                       # ignored: misc
+            | \d \w*+                           # ignored: numbers
+            | [@$] (?=\d|[^\w.$]|\z)            # ignored: bare sigils
+            | / (?!/)                           # ignored: bare slashes
+            | \\\n                              # ignored: escaped newlines
           )++
-      |   // .*+                                      # comment
       )
     }x
 
-    def handlers
+    LABELS = %r{ ^(#{ID}): | ^\}\n }x
+
+    def collect_handlers
       handlers = Hash.new(method(:on_other))
       {
         #Name   Starting Characters
         on_id:  [*?a..?z, *?A..?Z, ?_, ?., ?$],
-        on_arg: [?@],
-        on_var: [?$],
+        on_arg: [?@ ],
+        on_var: [?$ ],
         on_eol: [?\n],
       }
       .each do |name, chars|
@@ -105,16 +109,26 @@ module Raspp
 
     def on_id(match)
       id   = match[:id]
-      def_ = match[:def]
+      deƒ  = match[:def]
+      used = nil
 
-      if def_
-        # add to aliases here
-        id = def_
-      else
-        # lookup alias here
+      if deƒ
+        @scope.aliases[id] = "_(#{id})#{deƒ}"
+        id = deƒ
+        used = { id => true }
       end
 
-      print "L(#{id})"
+      while (deƒ = @scope.aliases[id])
+        id = deƒ
+        (used ||= {})[id] = true
+      end
+
+      if (deƒ = @scope.labels[id])
+        id = deƒ
+        (used ||= {})[id] = true
+      end
+
+      print id
     end
 
     def on_arg(match)
@@ -127,23 +141,12 @@ module Raspp
 
     def on_eol(match)
       puts
-      bol = match[:bol] or return
-      
-      case bol[0]
-      when '#'
-        print bol
-      when '}'
-        puts ".pop_scope", "#undef SCOPE"
+      scope = match[:scope] or return
+      if scope
+        push_scope match[:id]
+        scan_labels match.post_match
       else
-        print match[:indent]
-        id = match[:id]
-        if match[:bos]
-          print "#define SCOPE #{id}\n.push_scope SCOPE; SCOPE:"
-        elsif match[:lbl]
-          print "L(#{id}):"
-        else
-          print id
-        end
+        pop_scope
       end
     end
 
@@ -151,8 +154,82 @@ module Raspp
       print match[0]
     end
 
-  end # class Processor
-end # module Raspp
+    def push_scope(name)
+      @scope = @scope.subscope(name)
+      print "#define SCOPE #{name}\n.push_scope SCOPE; SCOPE:"
+    end
+
+    def pop_scope
+      print "#undef SCOPE\n.pop_scope\n"
+      @scope = @scope.parent unless @scope.root?
+    end
+
+    def scan_labels(text)
+      text.scan(LABELS) do
+        id = $1 or break
+        @scope.labels[id] = "L(#{id})"
+      end
+    end
+  end # Processor
+
+  class Scope
+    attr_reader :name, :parent, :labels, :aliases
+
+    def initialize(name, parent = nil)
+      @name    = name
+      @parent  = parent
+      @labels  = ManyToOneLookup.new(parent&.labels )
+      @aliases =  OneToOneLookup.new(parent&.aliases)
+    end
+
+    def subscope(name)
+      Scope.new(name, self)
+    end
+
+    def root?
+      parent.nil?
+    end
+  end
+
+  class ManyToOneLookup
+    attr_reader :parent
+
+    def initialize(parent = nil)
+      @parent = parent
+      @k2v    = {}
+    end
+
+    def [](key)
+      @k2v[key] or @parent&.[](key)
+    end
+
+    def []=(key, val)
+      @k2v[key] = val
+    end
+  end
+
+  class OneToOneLookup
+    attr_reader :parent
+
+    def initialize(name, parent = nil)
+      @parent = parent
+      @k2v    = {}
+      @v2k    = {}
+    end
+
+    def [](key)
+      @k2v[key] or @parent&.[](key)
+    end
+
+    def []=(key, val)
+      @v2k.delete(@k2v[key]) # Remove map: new key <- old val
+      @k2v.delete(@v2k[val]) # Remove map: old key -> new val
+      @k2v[key] = val
+      @v2k[val] = key
+      val
+    end
+  end
+end # Raspp
 
 if __FILE__ == $0
   # Running as script
