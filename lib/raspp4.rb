@@ -44,6 +44,8 @@
 #
 # FUTURE FEATURES
 #
+# - Nested scopes
+#
 # - Transform character literals
 #
 #     'a'           'a
