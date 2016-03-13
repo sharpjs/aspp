@@ -42,6 +42,12 @@
 #     @foo          ARG(foo)
 #     $bar          VAR(bar)
 #
+# - Square brackets for indirect addressing
+#
+#     [a0, 42]      (a0, 42)
+#     [-a0]         -(a0)
+#     [a0+]         (a0)+
+#
 # FUTURE FEATURES
 #
 # - Nested scopes
@@ -82,10 +88,13 @@ module Raspp
           )?+
         | (?<id>#{ID}) (?: @ (?<def>#{ID}) )?+  # aliasable identifier
         | [@$] (?<id>#{ID})                     # argument or variable
+        | \[ (?<inc>[-+])?+                     # effective address begins
+        |    (?<inc>[-+])?  \]                  # effective address ends
         | // [^\n]*+                            # ignored: comment
-        | (?: [^\w\n@$./\\"]                    # ignored: misc
+        | (?: [^\w\n@$.\[\]\-+/\\"]             # ignored: misc
             | \d \w*+                           # ignored: numbers
             | [@$] (?=\d|[^\w.$]|\z)            # ignored: bare sigils
+            | [-+] (?!\])                       # ignored: bare -/+
             | / (?!/)                           # ignored: bare slashes
             | \\ \n?+                           # ignored: escaped newlines
             | " (?: [^\\"] | \\.?+ )*+ "?+      # ignored: string literal (")
@@ -99,10 +108,12 @@ module Raspp
       handlers = Hash.new(method(:on_other))
       {
         #Name   Starting Characters
-        on_id:  [*?a..?z, *?A..?Z, ?_, ?., ?$],
-        on_arg: [?@ ],
-        on_var: [?$ ],
-        on_eol: [?\n],
+        on_id:  [ *?a..?z, *?A..?Z, ?_, ?., ?$ ],
+        on_arg: [ ?@  ],
+        on_var: [ ?$  ],
+        on_eol: [ ?\n ],
+        on_boa: [ ?[  ],
+        on_eoa: [ ?], ?+, ?- ],
       }
       .each do |name, chars|
         chars.each { |c| handlers[c] = method(name) }
@@ -151,6 +162,14 @@ module Raspp
         push_scope scope
         scan_labels match.post_match
       end
+    end
+
+    def on_boa(match)
+      print "#{match[:inc]}("
+    end
+
+    def on_eoa(match)
+      print ")#{match[:inc]}"
     end
 
     def on_other(match)
