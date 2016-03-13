@@ -22,13 +22,13 @@
 #
 # - Scopes with local labels
 #
-#     foo:          #define SCOPE foo
-#     {             .push_scope SCOPE; foo:
+#     foo:          #define scope foo
+#     {             .fn scope
 #
-#     bar:          L(bar):     (bar is local to scope foo)
-#       jmp bar     jmp L(bar)
+#     bar:          L$bar:      (bar is local to scope foo)
+#       jmp bar     jmp L$bar
 #
-#     }             .pop_scope
+#     }             .endfn
 #
 # - Inline unique aliases
 #
@@ -159,18 +159,18 @@ module Raspp
 
     def push_scope(name)
       @scope = @scope.subscope(name)
-      print "#define SCOPE #{name}\n.push_scope SCOPE; SCOPE:"
+      print "#define scope #{name}\n.fn scope;"
     end
 
     def pop_scope
-      print "#undef SCOPE\n.pop_scope\n"
+      print "#undef scope\n.endfn\n"
       @scope = @scope.parent unless @scope.root?
     end
 
     def scan_labels(text)
       text.scan(LABELS) do
         id = $1 or break
-        @scope.labels[id] = "L(#{id})"
+        @scope.labels[id] = "L$#{id}"
       end
     end
   end # Processor
