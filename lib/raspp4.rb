@@ -48,6 +48,14 @@
 #     [-a0]         -(a0)
 #     [a0+]         (a0)+
 #
+# - Automatic immediate-mode prefix
+#
+#     foo  4, d0     foo  #4, d0
+#     foo$ 4, d0     foo$ 4, d0   ($ for custom macros; no # added)
+#     .foo 4, d0     .foo 4, d0   (. for pseudo-ops;    no # added)
+#
+#     NOTE: Still needs to be implemented for symbols.
+#
 # FUTURE FEATURES
 #
 # - Nested scopes
@@ -82,21 +90,22 @@ module Raspp
 
     # Tokens - chunks of text to transform or ignore
     TOKENS = %r{ \G
-      (?: \n                                    # end of line, then:
-          (?: (?<scope>#{ID}): \n\{ (?=\n)      # - scope begins
-            | (?<scope>     )  \}\n (?=\n)      # - scope ends
+      (?: \n                                    # end of line
+          (?: (?<scope>#{ID}): \n\{ (?=\n)      # ...scope begin
+            | (?<scope>     )  \}\n (?=\n)      # ...scope end
           )?+
-        | (?<id>#{ID}) (?: @ (?<def>#{ID}) )?+  # aliasable identifier
+        | (?<id>#{ID}) (?: @ (?<def>#{ID}) )?+  # identifier or alias def
         | [@$] (?<id>#{ID})                     # argument or variable
-        | \[ (?<inc>[-+])?+                     # effective address begins
-        |    (?<inc>[-+])?  \]                  # effective address ends
+        | \d \w*+                               # number
+        | \[ (?<inc>[-+])?+                     # effective address begin
+        |    (?<inc>[-+])?  \]                  # effective address end
+        | (?: [ \t] | \\\n )++                  # whitespace
         | // [^\n]*+                            # ignored: comment
-        | (?: [^\w\n@$.\[\]\-+/\\"]             # ignored: misc
-            | \d \w*+                           # ignored: numbers
+        | (?: [^ \t\w\n@$.\[\]\-+/\\"]          # ignored: misc
             | [@$] (?=\d|[^\w.$]|\z)            # ignored: bare sigils
             | [-+] (?!\])                       # ignored: bare -/+
-            | / (?!/)                           # ignored: bare slashes
-            | \\ \n?+                           # ignored: escaped newlines
+            | /  (?!/)                          # ignored: bare slashes
+            | \\ (?!\n)                         # ignored: bare backslashes
             | " (?: [^\\"] | \\.?+ )*+ "?+      # ignored: string literal (")
           )++
       )
@@ -104,11 +113,16 @@ module Raspp
 
     LABELS = %r{ ^(#{ID}): | ^\}\n }x
 
+    # Identify mnemonics that are pseudo-ops, not instructions.
+    PSEUDO = %r{ ^\. | \$ }x
+
     def collect_handlers
       handlers = Hash.new(method(:on_other))
       {
         #Name   Starting Characters
+        on_ws:  [ ?\s, ?\t, ?\\ ],
         on_id:  [ *?a..?z, *?A..?Z, ?_, ?., ?$ ],
+        on_num: [ *?0..?9 ],
         on_arg: [ ?@  ],
         on_var: [ ?$  ],
         on_eol: [ ?\n ],
@@ -121,10 +135,20 @@ module Raspp
       handlers
     end
 
+    def on_ws(match)
+      print match[0]
+    end
+
     def on_id(match)
       id   = match[:id]
       deƒ  = match[:def]
       used = nil
+
+      unless @kind
+        @kind = PSEUDO =~ id ? :pseudo : :instr
+        print match[0]
+        return
+      end
 
       if deƒ
         @scope.aliases[id] = "_(#{id})#{deƒ}"
@@ -145,15 +169,27 @@ module Raspp
       print id
     end
 
+    def on_num(match)
+      @kind ||= :pseudo
+      if @kind == :instr
+        print "##{match[0]}"
+      else
+        print match[0]
+      end
+    end
+
     def on_arg(match)
+      @kind ||= :pseudo
       print "ARG(#{match[:id]})"
     end
 
     def on_var(match)
+      @kind ||= :pseudo
       print "VAR(#{match[:id]})"
     end
 
     def on_eol(match)
+      @kind = nil
       puts
       scope = match[:scope] or return
       if scope.empty?
@@ -165,14 +201,17 @@ module Raspp
     end
 
     def on_boa(match)
+      @kind ||= :pseudo
       print "#{match[:inc]}("
     end
 
     def on_eoa(match)
+      @kind ||= :pseudo
       print ")#{match[:inc]}"
     end
 
     def on_other(match)
+      @kind ||= :pseudo
       print match[0]
     end
 
