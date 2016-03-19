@@ -20,13 +20,223 @@
 #
 
 module Raspp
+  refine Object do
+    def to_term(ctx)
+      raise "invalid assembly term: #{inspect}"
+    end
+
+    def to_symbol(ctx)
+      raise "invalid assembly symbol: #{inspect}"
+    end
+
+    def to_asm
+      raise "cannot format for assembly: #{inspect}"
+    end
+  end
+
+  refine Proc do
+    def to_term(ctx)
+      call.to_term(ctx)
+    end
+
+    def to_symbol(ctx)
+      call.to_symbol(ctx)
+    end
+
+    def to_asm
+      call.to_asm
+    end
+  end
+
+  refine Module do
+    # Defines read-only accessor methods, corresponding instance variables,
+    # and an initializer method that sets the instance variables.
+    #
+    def struct(*names)
+      attr_reader *names
+
+      class_eval <<-EOS
+        def initialize(#{names.join(', ')})
+          #{names.map { |n| "@#{n} = #{n}" }.join('; ')}
+        end
+      EOS
+      nil
+    end
+
+    # Defines unary operators that produce assembler expressions.
+    #
+    def define_asm_unary_ops
+      # Define operators
+      define_method(:-@) { UnaryOp.new(:-, self) }
+      define_method(:~ ) { UnaryOp.new(:~, self) }
+      nil
+    end
+
+    # Defines binary operators that produce assembler expressions.
+    #
+    def define_asm_binary_ops
+      # Returns true if +rhs+ can form a binary expression with the receiver.
+      define_method(:binary_op_with?) do |rhs|
+        case rhs
+        when Numeric    then !self.is_a?(Numeric)
+        when Symbol     then true
+        when Expression then true
+        end
+      end
+
+      # Define operators
+      %i[* / % + - << >> & ^ | == != < <= > >= && ||]
+      .each do |op|
+        define_method(op) do |rhs|
+          if binary_op_with?(rhs)
+            BinaryOp.new(op, self, rhs)
+          else
+            super(rhs)
+          end
+        end
+      end
+
+      # Aliases to invoke && || operators, which Ruby cannot override.
+      alias_method :and, :'&&'
+      alias_method :or,  :'||'
+      nil
+    end
+  end
+
+  refine Fixnum do
+    def to_term(ctx)
+      Constant.new(self)
+    end
+
+    def to_asm
+      self < 10 ? to_s : "0x#{to_s(16)}"
+    end
+
+    define_asm_binary_ops
+  end
+
+  refine Symbol do
+    def to_term(ctx)
+      Constant.new(to_symbol(ctx))
+    end
+
+    def to_symbol(ctx)
+      local? ? ctx.local(self) : self
+    end
+
+    def to_asm
+      to_s
+    end
+
+    def local?
+      to_s.start_with?('$', '@')
+    end
+
+    def end
+      :"#{self}$end"
+    end
+
+    define_asm_unary_ops
+    define_asm_binary_ops
+  end
+
+  refine String do
+    def to_asm
+      %{"#{
+        gsub(/./m) do |c|
+          case c.ord
+          when 0x20..0x7E then c
+          when 0x08 then '\b'
+          when 0x09 then '\t'
+          when 0x0A then '\n'
+          when 0x0C then '\f'
+          when 0x0D then '\n'
+          when 0x22 then '\"'
+          when 0x5C then '\\\\'
+          else c.each_byte.reduce(''.dup) { |s, b| s << "\\#{b.to_s(8)}" }
+          end
+        end
+      }"}
+    end
+  end
+
+  # Apply refinements
+  using self
+
+  # ----------------------------------------------------------------------------
+
+  module Term
+    def to_term(ctx)
+      self
+    end
+
+    def for_inst
+      raise "invalid assembly operand: #{inspect}"
+    end
+  end
+
+  module Operand
+    include Term
+
+    def for_inst
+      self
+    end
+  end
+
+  module ReadOnly end
+
+  class Expression
+    include ReadOnly, Term
+    define_asm_unary_ops
+    define_asm_binary_ops
+  end
+
+  class Constant < Expression
+    struct :expr
+
+    def to_s
+      @expr.to_asm
+    end
+  end
+
+  class UnaryOp < Expression
+    struct :op, :expr
+
+    def to_term(ctx)
+      (expr = @expr.to_term(ctx)).equal?(@expr) \
+        ? self
+        : self.class.new(op, expr)
+    end
+
+    def to_s
+      "#{@op}#{@expr.to_asm}"
+    end
+  end
+
+  class BinaryOp < Expression
+    struct :op, :lhs, :rhs
+
+    def to_term(ctx)
+      (lhs = @lhs.to_term(ctx)).equal?(@lhs) &
+      (rhs = @rhs.to_term(ctx)).equal?(@rhs) \
+        ? self
+        : self.class.new(op, lhs, rhs)
+    end
+
+    def to_s
+      "(#{@lhs.to_asm} #{@op} #{@rhs.to_asm})"
+    end
+  end
+
+  # ----------------------------------------------------------------------------
+
   class Context
     attr_reader :_parent, :_local_prefix, :_local_index, :_out_stream
 
     def initialize(parent = nil, name = nil, out = nil)
       @_parent       = parent
-      #@_local_prefix = parent ? "#{parent.local(name)}." : ".L."
-      #@_local_index  = 0
+      @_local_prefix = parent ? "#{parent.local(name)}$" : ".L$"
+      @_local_index  = 0
       #@_out_stream   = out || parent && parent._out_stream || $stdout
     end
 
@@ -54,6 +264,32 @@ module Raspp
          * #{text.gsub("\n", "\n * ")}
          */
       END
+    end
+
+    def set(dst, src)
+      putd "move.l",
+        src.to_term(self).for_inst,
+        dst.to_term(self).for_inst
+    end
+
+    def local(sym = nil)
+      if sym.nil?
+        sym = @_local_index += 1
+      else
+        sym = sym.to_s
+        sym.slice! /^[$@]/
+      end
+      :"#{@_local_prefix}#{sym}"
+    end
+
+    private
+
+    def putd(op, *args)
+      args.compact!
+      args.map! { |a| a.to_term(self).for_inst.to_asm }
+      print ?\t, op
+      print ?\t, args.join(', ') unless args.empty?
+      puts
     end
 
 #    def method_missing(sym, *args, &block)
@@ -97,17 +333,7 @@ module Raspp
 #      puts ".global #{sym}"
 #      sym
 #    end
-#
-#    def local(sym = nil)
-#      if sym.nil?
-#        sym = @_local_index += 1
-#      else
-#        sym = sym.to_s
-#        sym.slice! /^[$@]/
-#      end
-#      :"#{@_local_prefix}#{sym}"
-#    end
-#
+
 #    def skip(count, fill = nil)
 #      dir :".skip", count, fill
 #    end
@@ -154,6 +380,59 @@ module Raspp
 
   class TopLevel < Context
   end
+
+  # ----------------------------------------------------------------------------
+
+  module Term
+    def for_jump
+      for_inst
+    end
+
+    def to_asm
+      to_s
+    end
+  end
+
+  class Expression
+    def for_inst
+      Immediate.new(self)
+    end
+
+    def for_jump
+      Absolute32.new(self)
+    end
+  end
+
+  # Immediate
+
+  Immediate = Struct.new :expr do
+    include ReadOnly, Operand
+
+    def to_s
+      "##{expr}"
+    end
+  end
+
+  # Absolute
+
+  module Absolute; end
+
+  Absolute16 = Struct.new :addr do
+    include Absolute, Operand
+
+    def to_s
+      "#{addr}:w"
+    end
+  end
+
+  Absolute32 = Struct.new :addr do
+    include Absolute, Operand
+
+    def to_s
+      "#{addr}:l"
+    end
+  end
+
 end # Raspp
 
 if __FILE__ == $0
