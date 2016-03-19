@@ -48,6 +48,14 @@ module Raspp
       self
     end
 
+    def note(text)
+      puts <<~END
+        /*
+         * #{text.gsub("\n", "\n * ")}
+         */
+      END
+    end
+
 #    def method_missing(sym, *args, &block)
 #      @_parent ? @_parent.send(sym, *args, &block) : super
 #    end
