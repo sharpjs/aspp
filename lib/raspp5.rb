@@ -688,6 +688,31 @@ module Raspp
     def term_type ; Absolute32 ; end
     def suffix    ; :l         ; end
   end
+
+  class Context
+    # Registers
+
+    DATA_REGS = [*:d0..:d7]
+      .each_with_index.map { |s, n| DataReg.new(s, n) }
+      .freeze
+
+    ADDR_REGS = [*:a0..:a5, :fp, :sp]
+      .each_with_index.map { |s, n| AddrReg.new(s, n) }
+      .freeze
+
+    ALL_REGS =
+      [
+        *DATA_REGS, *ADDR_REGS,
+        *%i[pc sr ccr bc]                   .map { |s| AuxReg.new(s) },
+        *%i[vbr cacr acr0 acr1 mbar rambar] .map { |s| CtlReg.new(s) }
+      ]
+      .reduce({}) { |h, r| h[r.reg] = r.freeze; h }
+      .each { |s, r| define_method(s) { r } }
+      .freeze
+
+    alias a6 fp
+    alias a7 sp
+  end
 end # Raspp
 
 if __FILE__ == $0
