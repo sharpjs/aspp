@@ -350,13 +350,24 @@ module Raspp
 
     private
 
+    def use(klass, sym, *args)
+      used = @used ||= {}
+      used[sym]    ||= klass.new(self, sym, *args).freeze
+    end
+
     def putd(op, *args)
-      # args must be terms
+      args.map! { |a| a.to_term(self) }
+      putd_raw op, *args
+    end
+
+    def puti(op, *args)
+      args.map! { |a| a.to_term(self).for_inst }
+      putd_raw op, *args
+    end
+
+    def putd_raw(op, *args)
       args.compact!
-      args.map! do |arg|
-        raise "not an assembly term: #{arg.inspect}" unless arg.is_a?(Term)
-        arg.to_asm
-      end
+      args.map! { |a| a.to_asm }
       print ?\t, op
       print ?\t, args.join(', ') unless args.empty?
       puts
@@ -600,20 +611,11 @@ module Raspp
 #      AddrRegInc.new name
 #    end
 
-    def addal(src)
-      src = src.to_term(context).for_inst
-      context.send(:putd, "adda.l", src, self)
-      self
-    end
+    def addal (x) context.addal(x, self) end
+    def subal (x) context.subal(x, self) end
 
-    def subal(src)
-      src = src.to_term(context).for_inst
-      context.send(:putd, "suba.l", src, self)
-      self
-    end
-
-    def +(rhs) addal(rhs) end
-    def -(rhs) subal(rhs) end
+    def +     (x) context.addal(x, self) end
+    def -     (x) context.subal(x, self) end
   end
 
 #  class AddrRegDec
@@ -750,48 +752,53 @@ module Raspp
   class Context
     # Registers
     
-    def d0;     the(DataReg, :d0, 1 ); end
-    def d1;     the(DataReg, :d1, 1 ); end
-    def d2;     the(DataReg, :d2, 2 ); end
-    def d3;     the(DataReg, :d3, 3 ); end
-    def d4;     the(DataReg, :d4, 4 ); end
-    def d5;     the(DataReg, :d5, 5 ); end
-    def d6;     the(DataReg, :d6, 6 ); end
-    def d7;     the(DataReg, :d7, 7 ); end
+    def d0;     use(DataReg, :d0, 1 ); end
+    def d1;     use(DataReg, :d1, 1 ); end
+    def d2;     use(DataReg, :d2, 2 ); end
+    def d3;     use(DataReg, :d3, 3 ); end
+    def d4;     use(DataReg, :d4, 4 ); end
+    def d5;     use(DataReg, :d5, 5 ); end
+    def d6;     use(DataReg, :d6, 6 ); end
+    def d7;     use(DataReg, :d7, 7 ); end
     
-    def a0;     the(AddrReg, :a0, 0 ); end
-    def a1;     the(AddrReg, :a1, 1 ); end
-    def a2;     the(AddrReg, :a2, 2 ); end
-    def a3;     the(AddrReg, :a3, 3 ); end
-    def a4;     the(AddrReg, :a4, 4 ); end
-    def a5;     the(AddrReg, :a5, 5 ); end
-    def a6;     the(AddrReg, :fp, 6 ); end
-    def a7;     the(AddrReg, :sp, 7 ); end
+    def a0;     use(AddrReg, :a0, 0 ); end
+    def a1;     use(AddrReg, :a1, 1 ); end
+    def a2;     use(AddrReg, :a2, 2 ); end
+    def a3;     use(AddrReg, :a3, 3 ); end
+    def a4;     use(AddrReg, :a4, 4 ); end
+    def a5;     use(AddrReg, :a5, 5 ); end
+    def a6;     use(AddrReg, :fp, 6 ); end
+    def a7;     use(AddrReg, :sp, 7 ); end
 
-    def pc;     the(AuxReg,  :pc    ); end
-    def sr;     the(AuxReg,  :sr    ); end
-    def ccr;    the(AuxReg,  :ccr   ); end
-    def bc;     the(AuxReg,  :bc    ); end
+    def pc;     use(AuxReg,  :pc    ); end
+    def sr;     use(AuxReg,  :sr    ); end
+    def ccr;    use(AuxReg,  :ccr   ); end
+    def bc;     use(AuxReg,  :bc    ); end
 
-    def vbr;    the(CtlReg,  :vbr   ); end
-    def cacr;   the(CtlReg,  :cacr  ); end
-    def acr0;   the(CtlReg,  :acr0  ); end
-    def acr1;   the(CtlReg,  :acr1  ); end
-    def mbar;   the(CtlReg,  :mbar  ); end
-    def rambar; the(CtlReg,  :rambar); end
+    def vbr;    use(CtlReg,  :vbr   ); end
+    def cacr;   use(CtlReg,  :cacr  ); end
+    def acr0;   use(CtlReg,  :acr0  ); end
+    def acr1;   use(CtlReg,  :acr1  ); end
+    def mbar;   use(CtlReg,  :mbar  ); end
+    def rambar; use(CtlReg,  :rambar); end
 
     alias fp a6
     alias sp a7
 
-    private
+    # Instructions
 
-    def the(klass, sym, *args)
-      var = :"@#{sym}"
-      instance_variable_get(var) ||
-      klass.new(self, sym, *args)
-        .freeze
-        .tap { |r| instance_variable_set(var, r) }
+    def addil src, dst
+      puti :'addi.l', src, dst ; dst
     end
+
+    def addal src, dst
+      puti :'adda.l', src, dst ; dst
+    end
+
+    def subal src, dst
+      puti :'suba.l', src, dst ; dst
+    end
+
   end
 end # Raspp
 
