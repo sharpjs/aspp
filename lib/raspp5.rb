@@ -296,6 +296,47 @@ module Raspp
 
   # ----------------------------------------------------------------------------
 
+  class Type; end
+
+  class ScalarType < Type
+    #struct :value_width, :store_width
+    def scalar?; true; end
+  end
+
+  class CompositeType < Type
+    def scalar?; false; end
+  end
+
+  class IntType < ScalarType
+    struct :value_width, :store_width, :signed
+  end
+
+  class FloatType < ScalarType
+    struct :value_width, :store_width
+  end
+
+  class ArrayType < CompositeType
+    struct :item_type, :length
+  end
+
+  class PtrType < CompositeType
+    struct :addr_type, :value_type
+  end
+
+  class StructType < CompositeType
+    struct :members
+  end
+
+  class UnionType < CompositeType
+    struct :members
+  end
+
+  class FuncType < CompositeType
+    struct :params, :returns
+  end
+
+  # ----------------------------------------------------------------------------
+
   class Context
     attr_reader :_parent, :_local_prefix, :_local_index, :_out_stream
 
