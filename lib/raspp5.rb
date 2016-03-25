@@ -339,6 +339,20 @@ module Raspp
     struct :name, :type
   end
 
+  INT = IntType.new(nil, nil, nil  )
+  I8  = IntType.new(  8,   8, true )
+  I16 = IntType.new( 16,  16, true )
+  I32 = IntType.new( 32,  32, true )
+  I64 = IntType.new( 64,  64, true )
+  U8  = IntType.new(  8,   8, false)
+  U16 = IntType.new( 16,  16, false)
+  U32 = IntType.new( 32,  32, false)
+  U64 = IntType.new( 64,  64, false)
+
+  FLOAT = FloatType.new(nil, nil)
+  F32   = FloatType.new( 32,  32)
+  F64   = FloatType.new( 64,  64)
+
   # ----------------------------------------------------------------------------
 
   class Context
