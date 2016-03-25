@@ -114,116 +114,116 @@ module Raspp
     define_asm_binary_ops
   end
 
-  refine Symbol do
-    def to_term(ctx)
-      Constant.new(to_symbol(ctx))
-    end
-
-    def to_symbol(ctx)
-      local? ? ctx.local(self) : self
-    end
-
-    def local?
-      to_s.start_with?('$', '@')
-    end
-
-    def end
-      :"#{self}$end"
-    end
-
-    def to_asm
-      to_s
-    end
-
-    define_asm_unary_ops
-    define_asm_binary_ops
-  end
-
-  refine String do
-    def to_asm
-      %{"#{
-        gsub(/./m) do |c|
-          case c.ord
-          when 0x20..0x7E then c
-          when 0x08 then '\b'
-          when 0x09 then '\t'
-          when 0x0A then '\n'
-          when 0x0C then '\f'
-          when 0x0D then '\n'
-          when 0x22 then '\"'
-          when 0x5C then '\\\\'
-          else c.each_byte.reduce(''.dup) { |s, b| s << "\\#{b.to_s(8)}" }
-          end
-        end
-      }"}
-    end
-  end
+#  refine Symbol do
+#    def to_term(ctx)
+#      Constant.new(to_symbol(ctx))
+#    end
+#
+#    def to_symbol(ctx)
+#      local? ? ctx.local(self) : self
+#    end
+#
+#    def local?
+#      to_s.start_with?('$', '@')
+#    end
+#
+#    def end
+#      :"#{self}$end"
+#    end
+#
+#    def to_asm
+#      to_s
+#    end
+#
+#    define_asm_unary_ops
+#    define_asm_binary_ops
+#  end
+#
+#  refine String do
+#    def to_asm
+#      %{"#{
+#        gsub(/./m) do |c|
+#          case c.ord
+#          when 0x20..0x7E then c
+#          when 0x08 then '\b'
+#          when 0x09 then '\t'
+#          when 0x0A then '\n'
+#          when 0x0C then '\f'
+#          when 0x0D then '\n'
+#          when 0x22 then '\"'
+#          when 0x5C then '\\\\'
+#          else c.each_byte.reduce(''.dup) { |s, b| s << "\\#{b.to_s(8)}" }
+#          end
+#        end
+#      }"}
+#    end
+#  end
 
   # ----------------------------------------------------------------------------
   # Target-Specific Refinements
 
-  refine Array do
-    def to_term(ctx)
-      case length
-      when 0
-        nil
-      when 1
-        case addr = self[0].to_term(ctx)
-        when Expression then Absolute32.new(addr)
-        when AddrReg    then AddrInd   .new(addr)
-        when AddrRegDec then AddrIndDec.new(addr)
-        when AddrRegInc then AddrIndInc.new(addr)
-        end
-      when 2
-        case base = self[0].to_term(ctx)
-        when AddrReg
-          case x = self[1].to_term(ctx)
-          when Expression  then AddrDisp .new(base, x)
-          when Index       then AddrIndex.new(base, 0, x, 1)
-          when ScaledIndex then AddrIndex.new(base, 0, x.index, x.scale)
-          end
-        when ctx.pc
-          case x = self[1].to_term(ctx)
-          when Expression  then PcDisp .new(x)
-          when Index       then PcIndex.new(0, x, 1)
-          when ScaledIndex then PcIndex.new(0, x.index, x.scale)
-          end
-        end
-      when 3, 4
-        disp = self[1].to_term(ctx) and Expression === disp and
-        begin
-          case index = self[2].to_term(ctx)
-          when Index
-            scale = self[3] || 1
-          when ScaledIndex
-            scale = index.scale
-            index = index.index.to_term(ctx) \
-              and Index === index and self[3].nil?
-          end
-        end and
-        SCALES.include?(scale) and
-        begin
-          case base = self[0].to_term(ctx)
-          when AddrReg then AddrIndex.new(base, disp.expr, index, scale)
-          when ctx.pc  then PcIndex  .new(      disp.expr, index, scale)
-          end
-        end
-      end.freeze or
-        raise "invalid addressing mode: [#{join(', ')}]"
-    end
-
-    def w
-      Near.new(self[0])
-    end
-
-    def l
-      Far.new(self[0])
-    end
-
-    def unwrap
-      length > 1 ? self : self[0]
-    end
-  end
+#  refine Array do
+#    def to_term(ctx)
+#      case length
+#      when 0
+#        nil
+#      when 1
+#        case addr = self[0].to_term(ctx)
+#        when Expression then Absolute32.new(addr)
+#        when AddrReg    then AddrInd   .new(addr)
+#        when AddrRegDec then AddrIndDec.new(addr)
+#        when AddrRegInc then AddrIndInc.new(addr)
+#        end
+#      when 2
+#        case base = self[0].to_term(ctx)
+#        when AddrReg
+#          case x = self[1].to_term(ctx)
+#          when Expression  then AddrDisp .new(base, x)
+#          when Index       then AddrIndex.new(base, 0, x, 1)
+#          when ScaledIndex then AddrIndex.new(base, 0, x.index, x.scale)
+#          end
+#        when ctx.pc
+#          case x = self[1].to_term(ctx)
+#          when Expression  then PcDisp .new(x)
+#          when Index       then PcIndex.new(0, x, 1)
+#          when ScaledIndex then PcIndex.new(0, x.index, x.scale)
+#          end
+#        end
+#      when 3, 4
+#        disp = self[1].to_term(ctx) and Expression === disp and
+#        begin
+#          case index = self[2].to_term(ctx)
+#          when Index
+#            scale = self[3] || 1
+#          when ScaledIndex
+#            scale = index.scale
+#            index = index.index.to_term(ctx) \
+#              and Index === index and self[3].nil?
+#          end
+#        end and
+#        SCALES.include?(scale) and
+#        begin
+#          case base = self[0].to_term(ctx)
+#          when AddrReg then AddrIndex.new(base, disp.expr, index, scale)
+#          when ctx.pc  then PcIndex  .new(      disp.expr, index, scale)
+#          end
+#        end
+#      end.freeze or
+#        raise "invalid addressing mode: [#{join(', ')}]"
+#    end
+#
+#    def w
+#      Near.new(self[0])
+#    end
+#
+#    def l
+#      Far.new(self[0])
+#    end
+#
+#    def unwrap
+#      length > 1 ? self : self[0]
+#    end
+#  end
 
   # ----------------------------------------------------------------------------
   # Generic Classes
@@ -351,8 +351,12 @@ module Raspp
     private
 
     def putd(op, *args)
+      # args must be terms
       args.compact!
-      args.map! { |a| a.to_term(self).for_inst.to_asm }
+      args.map! do |arg|
+        raise "not an assembly term: #{arg.inspect}" unless arg.is_a?(Term)
+        arg.to_asm
+      end
       print ?\t, op
       print ?\t, args.join(', ') unless args.empty?
       puts
@@ -472,8 +476,9 @@ module Raspp
 
   # Immediate
 
-  Immediate = Struct.new :expr do
+  class Immediate
     include ReadOnly, Operand
+    struct :expr
 
     def to_s
       "##{expr}"
@@ -484,16 +489,18 @@ module Raspp
 
   module Absolute; end
 
-  Absolute16 = Struct.new :addr do
+  class Absolute16
     include Absolute, Operand
+    struct :addr
 
     def to_s
       "#{addr}:w"
     end
   end
 
-  Absolute32 = Struct.new :addr do
+  class Absolute32
     include Absolute, Operand
+    struct :addr
 
     def to_s
       "#{addr}:l"
@@ -504,7 +511,7 @@ module Raspp
 
   module Register
     def to_s
-      "%#{reg}"
+      "%#{name}"
     end
   end
 
@@ -528,190 +535,263 @@ module Raspp
   end
 
   module Listable
-    def -(reg)
-      RegList.new(["#{self}-#{reg}"])
-    end
-
-    def |(reg)
-      RegList.new([self]) | reg
-    end
+#    def -(reg)
+#      RegList.new(["#{self}-#{reg}"])
+#    end
+#
+#    def |(reg)
+#      RegList.new([self]) | reg
+#    end
   end
 
   class DataReg
     include Numbered, Listable, Index, Register, Operand
-    struct :reg, :number
+    struct :context, :name, :number
 
-    def self.all
-      Context::DATA_REGS
+#    def self.all
+#      Context::DATA_REGS
+#    end
+
+    def addl(src)
+      src = src.to_term(context).for_inst
+      context.send(:putd, "add.l", src, self)
+      self
+    end
+
+    def addil(src)
+      src = src.to_term(context).for_inst
+      context.send(:putd, "addi.l", src, self)
+      self
+    end
+
+    def subil(src)
+      src = src.to_term(context).for_inst
+      context.send(:putd, "subi.l", src, self)
+      self
+    end
+
+    def +(rhs)
+      rhs = rhs.to_term(context).for_inst
+      case rhs
+      when Immediate then addil rhs
+      else addl rhs
+      end
+    end
+
+    def -(rhs)
+      context.send(:putd, "sub.l", rhs.to_term(context).for_inst, self)
+      self
     end
   end
 
   class AddrReg
     include Numbered, Listable, Index, Register, Operand
-    struct :reg, :number
+    struct :context, :name, :number
 
-    def self.all
-      Context::ADDR_REGS
+#    def self.all
+#      Context::ADDR_REGS
+#    end
+
+#    def -@
+#      AddrRegDec.new name
+#    end
+#
+#    def +@
+#      AddrRegInc.new name
+#    end
+
+    def addal(src)
+      src = src.to_term(context).for_inst
+      context.send(:putd, "adda.l", src, self)
+      self
     end
 
-    def -@
-      AddrRegDec.new reg
+    def subal(src)
+      src = src.to_term(context).for_inst
+      context.send(:putd, "suba.l", src, self)
+      self
     end
 
-    def +@
-      AddrRegInc.new reg
-    end
+    def +(rhs) addal(rhs) end
+    def -(rhs) subal(rhs) end
   end
 
-  AddrRegDec = Struct.new :reg do
-    include Register, Term
-  end
+#  class AddrRegDec
+#    include Register, Term
+#    struct :name
+#  end
+#
+#  class AddrRegInc
+#    include Register, Term
+#    struct :name
+#  end
 
-  AddrRegInc = Struct.new :reg do
-    include Register, Term
-  end
-
-  AuxReg = Struct.new :reg do
+  class AuxReg
     include Register, Operand
+    struct :context, :name
   end
 
-  CtlReg = Struct.new :reg do
+  class CtlReg
     include Register, Operand
+    struct :context, :name
   end
 
-  RegList = Struct.new :regs do
-    include Operand
-
-    def to_s
-      "#{regs.join("/")}"
-    end
-
-    def |(reg)
-      regs << reg; self
-    end
-  end
+#  class RegList
+#    include Operand
+#    struct :regs
+#
+#    def to_s
+#      "#{regs.join("/")}"
+#    end
+#
+#    def |(reg)
+#      regs << reg; self
+#    end
+#  end
 
   # Indirect
 
-  module Indirect  end
-  module Displaced end
-  module Indexed   end
-
-  SCALES = [1, 2, 4]
-
-  ScaledIndex = Struct.new :index, :scale do
-    include Term
-
-    def to_s
-      "#{index}*#{scale}"
-    end
-  end
-
-  AddrInd = Struct.new :reg do
-    include Indirect, Operand
-
-    def to_s
-      "#{reg}@"
-    end
-  end
-
-  AddrIndInc = Struct.new :reg do
-    include Indirect, Operand
-
-    def to_s
-      "#{reg}@+"
-    end
-  end
-
-  AddrIndDec = Struct.new :reg do
-    include Indirect, Operand
-
-    def to_s
-      "#{reg}@-"
-    end
-  end
-
-  AddrDisp = Struct.new :base, :disp do
-    include Displaced, Indirect, Operand
-
-    def to_s
-      "#{base}@(#{disp})"
-    end
-  end
-
-  AddrIndex = Struct.new :base, :disp, :index, :scale do
-    include Indexed, Displaced, Indirect, Operand
-
-    def to_s
-      "#{base}@(#{disp}, #{index}*#{scale})"
-    end
-  end
-
-  PcDisp = Struct.new :disp do
-    include ReadOnly, Displaced, Indirect, Operand
-
-    def to_s
-      "%pc@(#{disp})"
-    end
-  end
-
-  PcIndex = Struct.new :disp, :index, :scale do
-    include ReadOnly, Indexed, Displaced, Indirect, Operand
-
-    def to_s
-      "%pc@(#{disp}, #{index}*#{scale})"
-    end
-  end
-
-  class Reference
-    struct :addr
-
-    def to_term(ctx)
-      addr = self.addr.to_term(ctx)
-      unless addr.is_a?(Expression)
-        raise "invalid absolute reference: #{self}"
-      end
-      term_type.new(addr)
-    end
-
-    def to_s
-      "[#{addr.to_asm}].#{suffix}"
-    end
-  end
-
-  class Near < Reference
-    def term_type ; Absolute16 ; end
-    def suffix    ; :w         ; end
-  end
-
-  class Far < Reference
-    def term_type ; Absolute32 ; end
-    def suffix    ; :l         ; end
-  end
+#  module Indirect  end
+#  module Displaced end
+#  module Indexed   end
+#
+#  SCALES = [1, 2, 4]
+#
+#  ScaledIndex = Struct.new :index, :scale do
+#    include Term
+#
+#    def to_s
+#      "#{index}*#{scale}"
+#    end
+#  end
+#
+#  AddrInd = Struct.new :reg do
+#    include Indirect, Operand
+#
+#    def to_s
+#      "#{reg}@"
+#    end
+#  end
+#
+#  AddrIndInc = Struct.new :reg do
+#    include Indirect, Operand
+#
+#    def to_s
+#      "#{reg}@+"
+#    end
+#  end
+#
+#  AddrIndDec = Struct.new :reg do
+#    include Indirect, Operand
+#
+#    def to_s
+#      "#{reg}@-"
+#    end
+#  end
+#
+#  AddrDisp = Struct.new :base, :disp do
+#    include Displaced, Indirect, Operand
+#
+#    def to_s
+#      "#{base}@(#{disp})"
+#    end
+#  end
+#
+#  AddrIndex = Struct.new :base, :disp, :index, :scale do
+#    include Indexed, Displaced, Indirect, Operand
+#
+#    def to_s
+#      "#{base}@(#{disp}, #{index}*#{scale})"
+#    end
+#  end
+#
+#  PcDisp = Struct.new :disp do
+#    include ReadOnly, Displaced, Indirect, Operand
+#
+#    def to_s
+#      "%pc@(#{disp})"
+#    end
+#  end
+#
+#  PcIndex = Struct.new :disp, :index, :scale do
+#    include ReadOnly, Indexed, Displaced, Indirect, Operand
+#
+#    def to_s
+#      "%pc@(#{disp}, #{index}*#{scale})"
+#    end
+#  end
+#
+#  class Reference
+#    struct :addr
+#
+#    def to_term(ctx)
+#      addr = self.addr.to_term(ctx)
+#      unless addr.is_a?(Expression)
+#        raise "invalid absolute reference: #{self}"
+#      end
+#      term_type.new(addr)
+#    end
+#
+#    def to_s
+#      "[#{addr.to_asm}].#{suffix}"
+#    end
+#  end
+#
+#  class Near < Reference
+#    def term_type ; Absolute16 ; end
+#    def suffix    ; :w         ; end
+#  end
+#
+#  class Far < Reference
+#    def term_type ; Absolute32 ; end
+#    def suffix    ; :l         ; end
+#  end
 
   class Context
     # Registers
+    
+    def d0;     the(DataReg, :d0, 1 ); end
+    def d1;     the(DataReg, :d1, 1 ); end
+    def d2;     the(DataReg, :d2, 2 ); end
+    def d3;     the(DataReg, :d3, 3 ); end
+    def d4;     the(DataReg, :d4, 4 ); end
+    def d5;     the(DataReg, :d5, 5 ); end
+    def d6;     the(DataReg, :d6, 6 ); end
+    def d7;     the(DataReg, :d7, 7 ); end
+    
+    def a0;     the(AddrReg, :a0, 0 ); end
+    def a1;     the(AddrReg, :a1, 1 ); end
+    def a2;     the(AddrReg, :a2, 2 ); end
+    def a3;     the(AddrReg, :a3, 3 ); end
+    def a4;     the(AddrReg, :a4, 4 ); end
+    def a5;     the(AddrReg, :a5, 5 ); end
+    def a6;     the(AddrReg, :fp, 6 ); end
+    def a7;     the(AddrReg, :sp, 7 ); end
 
-    DATA_REGS = [*:d0..:d7]
-      .each_with_index.map { |s, n| DataReg.new(s, n) }
-      .freeze
+    def pc;     the(AuxReg,  :pc    ); end
+    def sr;     the(AuxReg,  :sr    ); end
+    def ccr;    the(AuxReg,  :ccr   ); end
+    def bc;     the(AuxReg,  :bc    ); end
 
-    ADDR_REGS = [*:a0..:a5, :fp, :sp]
-      .each_with_index.map { |s, n| AddrReg.new(s, n) }
-      .freeze
+    def vbr;    the(CtlReg,  :vbr   ); end
+    def cacr;   the(CtlReg,  :cacr  ); end
+    def acr0;   the(CtlReg,  :acr0  ); end
+    def acr1;   the(CtlReg,  :acr1  ); end
+    def mbar;   the(CtlReg,  :mbar  ); end
+    def rambar; the(CtlReg,  :rambar); end
 
-    ALL_REGS =
-      [
-        *DATA_REGS, *ADDR_REGS,
-        *%i[pc sr ccr bc]                   .map { |s| AuxReg.new(s) },
-        *%i[vbr cacr acr0 acr1 mbar rambar] .map { |s| CtlReg.new(s) }
-      ]
-      .reduce({}) { |h, r| h[r.reg] = r.freeze; h }
-      .each { |s, r| define_method(s) { r } }
-      .freeze
+    alias fp a6
+    alias sp a7
 
-    alias a6 fp
-    alias a7 sp
+    private
+
+    def the(klass, sym, *args)
+      var = :"@#{sym}"
+      instance_variable_get(var) ||
+      klass.new(self, sym, *args)
+        .freeze
+        .tap { |r| instance_variable_set(var, r) }
+    end
   end
 end # Raspp
 
