@@ -297,42 +297,70 @@ module Raspp
   # ----------------------------------------------------------------------------
 
   class Type
-    # Just a base class
+    def ptr16
+      PtrType.new(I16, self)
+    end
+
+    def ptr32
+      PtrType.new(U32, self)
+    end
+
+    def array(len)
+      ArrayType.new(self, len)
+    end
   end
 
-  class IntType < Type
+  class OpaqueType < Type
+    # (no extra members)
+  end
+
+  class ScalarType < Type
+    # value_width
+    # store_width
+  end
+
+  class IntegralType < ScalarType
+    # signed
+  end
+
+  class IntType < IntegralType
     struct :value_width, :store_width, :signed
-    def kind; :inty; end
   end
 
-  class FloatType < Type
+  class FloatType < ScalarType
     struct :value_width, :store_width
-    def kind; :floaty; end
   end
 
-  class PtrType < Type
+  class PtrType < IntegralType
     struct :address_type, :value_type
-    def kind; :inty; end
+
+    def value_width
+      address_type.value_width
+    end
+
+    def store_width
+      address_type.store_width
+    end
+
+    def signed
+      address_type.signed
+    end
   end
 
-  class ArrayType < Type
+  class ArrayType < OpaqueType
     struct :type, :length
-    def kind; :opaque; end
   end
 
-  class StructType < Type
+  class StructType < OpaqueType
     struct :members
-    def kind; :opaque; end
   end
 
-  class UnionType < Type
+  class UnionType < OpaqueType
     struct :members
-    def kind; :opaque; end
   end
 
-  class FuncType < Type
+  class FuncType < OpaqueType
     struct :params, :returns
-    def kind; :opaque; end
   end
 
   class Member
@@ -352,6 +380,20 @@ module Raspp
   FLOAT = FloatType.new(nil, nil)
   F32   = FloatType.new( 32,  32)
   F64   = FloatType.new( 64,  64)
+
+  class Type
+    def self.check_types_compat(x, y)
+      if x == y
+        x
+      elsif IntegralType === x && IntegralType === y
+        x.store_width.nil? ? y :
+        y.store_width.nil? ? x : nil
+      elsif FloatType === x && FloatType === y
+        x.store_width.nil? ? y :
+        y.store_width.nil? ? x : nil
+      end
+    end
+  end
 
   # ----------------------------------------------------------------------------
 
