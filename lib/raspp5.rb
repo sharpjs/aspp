@@ -48,22 +48,30 @@ module Raspp
   end
 
   refine Module do
-    # Defines read-only accessor methods, corresponding instance variables,
-    # and an initializer method that sets the instance variables.
-    #
+    # Makes a class struct-like.  Defines:
+    #   - read-only accessor methods
+    #   - corresponding instance variables
+    #   - an initializer that sets the instance variables and calls super
     def struct(*names)
+      super_names = superclass
+        .instance_method(:initialize)
+        .parameters
+        .map { |p| p[1] } # [1] is name
+
+      all_names = super_names + names
+
       attr_reader *names
 
       class_eval <<-EOS
-        def initialize(#{names.join(', ')})
+        def initialize(#{all_names.join(', ')})
           #{names.map { |n| "@#{n} = #{n}" }.join('; ')}
+          super(#{super_names.join(', ')})
         end
       EOS
       nil
     end
 
     # Defines unary operators that produce assembler expressions.
-    #
     def define_asm_unary_ops
       # Define operators
       define_method(:-@) { UnaryOp.new(:-, self) }
@@ -72,7 +80,6 @@ module Raspp
     end
 
     # Defines binary operators that produce assembler expressions.
-    #
     def define_asm_binary_ops
       # Returns true if +rhs+ can form a binary expression with the receiver.
       define_method(:binary_op_with?) do |rhs|
