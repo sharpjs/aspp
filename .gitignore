@@ -10,6 +10,7 @@ tmp*
 
 # Testing
 test*
+!test/
 a.out
 
 # Mac OS X
