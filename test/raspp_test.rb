@@ -27,7 +27,7 @@ module Raspp
       input  = unindent input
       output = unindent output
       actual = capture do
-        Raspp::process(input, 'test', 1)
+        Raspp::Processor.new.process(input, 'test')
       end
       assert_equal output, actual
     end
@@ -54,14 +54,31 @@ module Raspp
   end
 
   class GeneralTest < RasppTest
-    def test_foo
-    #  assert_pp '
-    #    1 + a@b0
-    #    2 + a
-    #  ', '
-    #    1 + b0
-    #    2 + b0
-    #  '
+    def test_unchanged
+      assert_pp '
+        foo
+      ', '
+        foo
+      '
+    end
+
+    def test_fn
+      assert_pp '
+        
+        foo:
+        {
+          stuff
+        }
+
+      ', '
+        
+        #define scope foo
+        .fn scope;
+          stuff
+        #undef scope
+        .endfn
+
+      '
     end
   end
 end
