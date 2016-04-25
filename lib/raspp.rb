@@ -2,7 +2,7 @@
 # encoding: UTF-8
 # frozen_string_literal: true
 #
-# raspp.rb - Assembly Preprocessor in Ruby
+# raspp - Assembly Preprocessor in Ruby
 # Copyright (C) 2016 Jeffrey Sharp
 #
 # raspp is free software: you can redistribute it and/or modify it
@@ -18,217 +18,268 @@
 # You should have received a copy of the GNU General Public License
 # along with raspp.  If not, see <http://www.gnu.org/licenses/>.
 #
-# FEATURES
+# IMPLEMENTED FEATURES
 #
-# Ruby code:
+# - Scopes with local labels
 #
-#   @ puts "a ruby line"
+#     foo:          #define scope foo
+#     {             .fn scope
 #
-#   move.l `inline_ruby`, d0
+#     bar:          L$bar:      (bar is local to scope foo)
+#       jmp bar     jmp L$bar
 #
-# Aliases (inline token macros)
+#     }             .endfn
 #
-#   move.l v@(8, fp), x@d0
-#   add.l  #3, x
-#   move.l x, v
+# - Inline unique aliases
 #
-# Comment removal
+#     foo@a0        _(foo)a0
+#     foo           _(foo)a0
+#     bar@a0        _(bar)a0  (this undefines foo)
+#     foo           *ERROR*
 #
-#   ; this is a comment
+# - Sigils for arguments and local variables
 #
-# Line continuation:
+#     @foo          ARG(foo)
+#     $bar          VAR(bar)
 #
-#   this is \
-#   all one line
+# - Square brackets for indirect addressing
+#
+#     [a0, 42]      (a0, 42)
+#     [-a0]         -(a0)
+#     [a0+]         (a0)+
+#
+# - Automatic immediate-mode prefix
+#
+#     foo  4, d0     foo  #4, d0
+#     foo$ 4, d0     foo$ 4, d0   ($ for custom macros; no # added)
+#     .foo 4, d0     .foo 4, d0   (. for pseudo-ops;    no # added)
+#
+#     NOTE: Still needs to be implemented for symbols.
+#
+# FUTURE FEATURES
+#
+# - Nested scopes
+#
+# - Transform character literals
+#
+#     'a'           'a
 #
 
 module Raspp
-  def self.process(input, file = "(stdin)", line = 1)
-    Preprocessor.new(file, line).process(input)
-  end
-
-  private
-
-  WS  = '[ \t]*+'
-  ANY = '[^\r\n]*+'
-  BOL = '(?<=\n|\r|\r\n|\A)'
-  EOL = '(?:\n|\r\n?+|\z)'
-
-  TOKENS = %r{ \G
-    (?:
-      #{BOL} #{WS} @ (?<ruby> #{ANY} #{EOL} )   # ruby line
-    |
-      (?<ws> #{WS} )                            # whitespace
-      (?<tok>                                   # token:
-        (?: \n | \r\n?+                         # - end of line
-          | (?!\d) [\w.]++ \$?+                 # - identifier
-          | [\d$%] [\w.]*+                      # - number literal
-          | ` (?: [^`]           )*+ `?+        # - inline ruby    (`)
-          | ' (?: [^\\'] | \\.?+ )*+ '?+        # - string literal (')
-          | " (?: [^\\"] | \\.?+ )*+ "?+        # - string literal (")
-          | ; #{ANY}                            # - comment
-          | \\ #{WS} (?:;#{ANY})? #{EOL} #{WS}  # - continued line
-          | [@\[\](){}]                         # - punctuators
-          | [^ \t\r\n\w.$%`'";@\[\](){}]++      # - other
-        )
-      )
-    )
-  }mx
-
-  TOKEN_TYPES = {}.tap do |types|
-    {
-      # Type      # Starting Characters
-      on_id:      [*?a..?z, *?A..?Z, ?_, ?.],
-      on_ruby_ex: %W| `       |,
-      on_chunk:   %W| ' " $ % | + [*?0..?9],
-      on_enter:   %W| [ ( {   |,
-      on_leave:   %W| ] ) }   |,
-      on_alias:   %W| @       |,
-      on_comment: %W| ;       |,
-      on_eol_esc: %W| \\      |,
-      on_eol:     %W| \n \r   |,
-    }
-    .each do |type, chars|
-      chars.each { |c| types[c] = type }
-    end
-  end
-
-  class Preprocessor
-    def initialize(file = "(stdin)", line = 1)
-      @file, @line, @aliases, @script = file, line, {}, ''.dup
-    end
-
-    def process(input)
-      input.scan(TOKENS) do |ruby, ws, tok|
-        if ruby
-          on_ruby(ruby)
-        else
-          send(TOKEN_TYPES[tok[0]] || :on_chunk, ws, tok)
-        end
-      end
-      flush_id
-      flush_text
-      $stderr.puts @script
-      Environment.new.instance_eval @script
-    end
-
-    def on_comment(ws, tok)
-      flush_id
-      # Suppress comment
-    end
-
-    def on_eol_esc(ws, tok)
-      print ' '
-    end
-
-    def on_eol(ws, tok)
-      flush_id
-      print tok
-      update_aliases 0
-      flush_text
-    end
-
-    def on_id(ws, tok)
-      flush_id
-      print ws
-      @id = tok
-    end
-
-    def on_alias(ws, tok)
-      if @id
-        raise "Recursive alias definition" if @aliases.key?(@id)
-        @aliases[@id] = { text: '', depth: 0 }
-        @id = nil
-      else
-        print ws, tok
-      end
-    end
-
-    def on_chunk(ws, tok)
-      flush_id
-      print ws, tok
-      update_aliases 0, ws, tok
-    end
-
-    def on_enter(ws, tok)
-      flush_id
-      print ws, tok
-      update_aliases +1, tok
-    end
-
-    def on_leave(ws, tok)
-      flush_id
-      print ws, tok
-      update_aliases -1, ws, tok
-    end
-
-    def flush_id
-      if @id
-        @text << %(\#{scope[#{@id.inspect}]})
-        update_aliases 0, @id
-        @id = nil
-      end
-    end
-
-    def update_aliases(depth, *toks)
-      @aliases.delete_if do |name, a|
-        text = toks.reduce(a[:text].dup, :<<)
-
-        #scope[name] = text.lstrip if (a[:depth] += depth) <= 0
-        flush_text
-        @script << %(scope[#{name.inspect}] = #{text.inspect}\n) if
-          (a[:depth] += depth) <= 0
-      end
-    end
-
-    def on_ruby(ruby)
-      flush_text
-      @script << ruby
-    end
-
-    def on_ruby_ex(ws, ruby)
-      print ws
-      @text << %(\#{#{ruby}})
-    end
-
-    def print(*strs)
-      strs.reduce(@text ||= ''.dup) { |t, s| t << s.inspect[1..-2] }
-    end
-
-    def flush_text
-      @script << %{print("#{@text}")\n} if @text
-      @text = nil
-    end
-  end
-
-  class Environment
-    attr_reader :scope
-
+  class Processor
     def initialize
-      @scope = Scope.new
+      @handlers = collect_handlers
     end
 
-    def subscope
-      @scope = @scope.subscope
-      yield
-    ensure
-      @scope = @scope.parent
+    def process(input, file = "(stdin)", line = 1)
+      @input    = input
+      @file     = file
+      @line     = line
+      @scope    = Scope.new(nil)
+
+      input.scan(TOKENS) do
+        #p $~
+        @handlers[$&[0]].call($~)
+      end
     end
-  end
+
+    private
+
+    # Identifiers
+    ID = %r{ (?!\d) [\w.$]++ }x
+
+    # Tokens - chunks of text to transform or ignore
+    TOKENS = %r{ \G
+      (?: \n                                    # end of line
+          (?: (?<scope>#{ID}): \n\{ (?=\n)      # ...scope begin
+            | (?<scope>     )  \}\n (?=\n)      # ...scope end
+          )?+
+        | (?<id>#{ID}) (?: @ (?<def>#{ID}) )?+  # identifier or alias def
+        | [@$] (?<id>#{ID})                     # argument or variable
+        | \d \w*+                               # number
+        | \[ (?<inc>[-+])?+                     # effective address begin
+        |    (?<inc>[-+])?  \]                  # effective address end
+        | (?: [ \t] | \\\n )++                  # whitespace
+        | // [^\n]*+                            # ignored: comment
+        | (?: [^ \t\w\n@$.\[\]\-+/\\"]          # ignored: misc
+            | [@$] (?=\d|[^\w.$]|\z)            # ignored: bare sigils
+            | [-+] (?!\])                       # ignored: bare -/+
+            | /  (?!/)                          # ignored: bare slashes
+            | \\ (?!\n)                         # ignored: bare backslashes
+            | " (?: [^\\"] | \\.?+ )*+ "?+      # ignored: string literal (")
+          )++
+      )
+    }mx
+
+    LABELS = %r{ ^(#{ID}): | ^\}\n }x
+
+    # Identify mnemonics that are pseudo-ops, not instructions.
+    PSEUDO = %r{ ^\. | \$ }x
+
+    def collect_handlers
+      handlers = Hash.new(method(:on_other))
+      {
+        #Name   Starting Characters
+        on_ws:  [ ?\s, ?\t, ?\\ ],
+        on_id:  [ *?a..?z, *?A..?Z, ?_, ?., ?$ ],
+        on_num: [ *?0..?9 ],
+        on_arg: [ ?@  ],
+        on_var: [ ?$  ],
+        on_eol: [ ?\n ],
+        on_boa: [ ?[  ],
+        on_eoa: [ ?], ?+, ?- ],
+      }
+      .each do |name, chars|
+        chars.each { |c| handlers[c] = method(name) }
+      end
+      handlers
+    end
+
+    def on_ws(match)
+      print match[0]
+    end
+
+    def on_id(match)
+      id   = match[:id]
+      deƒ  = match[:def]
+      used = nil
+
+      unless @kind
+        @kind = PSEUDO =~ id ? :pseudo : :instr
+        print match[0]
+        return
+      end
+
+      if deƒ
+        @scope.aliases[id] = "_(#{id})#{deƒ}"
+        id = deƒ
+        used = { id => true }
+      end
+
+      while (deƒ = @scope.aliases[id])
+        id = deƒ
+        (used ||= {})[id] = true
+      end
+
+      if (deƒ = @scope.labels[id])
+        id = deƒ
+        (used ||= {})[id] = true
+      end
+
+      print id
+    end
+
+    def on_num(match)
+      @kind ||= :pseudo
+      if @kind == :instr
+        print "##{match[0]}"
+      else
+        print match[0]
+      end
+    end
+
+    def on_arg(match)
+      @kind ||= :pseudo
+      print "ARG(#{match[:id]})"
+    end
+
+    def on_var(match)
+      @kind ||= :pseudo
+      print "VAR(#{match[:id]})"
+    end
+
+    def on_eol(match)
+      @kind = nil
+      puts
+      scope = match[:scope] or return
+      if scope.empty?
+        pop_scope
+      else
+        push_scope scope
+        scan_labels match.post_match
+      end
+    end
+
+    def on_boa(match)
+      @kind ||= :pseudo
+      print "#{match[:inc]}("
+    end
+
+    def on_eoa(match)
+      @kind ||= :pseudo
+      print ")#{match[:inc]}"
+    end
+
+    def on_other(match)
+      @kind ||= :pseudo
+      print match[0]
+    end
+
+    def push_scope(name)
+      @scope = @scope.subscope(name)
+      print "#define scope #{name}\n.fn scope;"
+    end
+
+    def pop_scope
+      print "#undef scope\n.endfn\n"
+      @scope = @scope.parent unless @scope.root?
+    end
+
+    def scan_labels(text)
+      text.scan(LABELS) do
+        id = $1 or break
+        @scope.labels[id] = "L$#{id}"
+      end
+    end
+  end # Processor
 
   class Scope
+    attr_reader :name, :parent, :labels, :aliases
+
+    def initialize(name, parent = nil)
+      @name    = name
+      @parent  = parent
+      @labels  = ManyToOneLookup.new(parent&.labels )
+      @aliases =  OneToOneLookup.new(parent&.aliases)
+    end
+
+    def subscope(name)
+      Scope.new(name, self)
+    end
+
+    def root?
+      parent.nil?
+    end
+  end
+
+  class ManyToOneLookup
     attr_reader :parent
 
     def initialize(parent = nil)
-      @parent, @k2v, @v2k = parent, {}, {}
-    end
-
-    def subscope
-      Scope.new(self)
+      @parent = parent
+      @k2v    = {}
     end
 
     def [](key)
-      @k2v[key] || (@parent ? @parent[key] : key)
+      @k2v[key] or @parent&.[](key)
+    end
+
+    def []=(key, val)
+      @k2v[key] = val
+    end
+  end
+
+  class OneToOneLookup
+    attr_reader :parent
+
+    def initialize(name, parent = nil)
+      @parent = parent
+      @k2v    = {}
+      @v2k    = {}
+    end
+
+    def [](key)
+      @k2v[key] or @parent&.[](key)
     end
 
     def []=(key, val)
@@ -236,14 +287,17 @@ module Raspp
       @k2v.delete(@v2k[val]) # Remove map: old key -> new val
       @k2v[key] = val
       @v2k[val] = key
+      val
     end
   end
-end
+end # Raspp
 
 if __FILE__ == $0
   # Running as script
+  trap "PIPE", "SYSTEM_DEFAULT"
+  processor = Raspp::Processor.new
   loop do
-    Raspp::process(ARGF.file.read, ARGF.filename)
+    processor.process(ARGF.file.read, ARGF.filename)
     ARGF.skip
     break if ARGV.empty?
   end

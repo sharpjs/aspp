@@ -55,13 +55,13 @@ module Raspp
 
   class GeneralTest < RasppTest
     def test_foo
-    #  assert_pp '
-    #    1 + a@b0
-    #    2 + a
-    #  ', '
-    #    1 + b0
-    #    2 + b0
-    #  '
+      assert_pp '
+        1 + a@b0
+        2 + a
+      ', '
+        1 + b0
+        2 + b0
+      '
     end
   end
 end

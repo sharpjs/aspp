@@ -73,7 +73,6 @@ module Raspp
 
     # Defines unary operators that produce assembler expressions.
     def define_asm_unary_ops
-      # Define operators
       define_method(:-@) { UnaryOp.new(:-, self) }
       define_method(:~ ) { UnaryOp.new(:~, self) }
       nil
@@ -248,7 +247,7 @@ module Raspp
     end
   end
 
-  module Operand
+  module Operand < Term
     include Term
 
     def for_inst
