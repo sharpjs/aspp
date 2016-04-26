@@ -54,8 +54,6 @@
 #     foo$ 4, d0     foo$ 4, d0   ($ for custom macros; no # added)
 #     .foo 4, d0     .foo 4, d0   (. for pseudo-ops;    no # added)
 #
-#     NOTE: Still needs to be implemented for symbols.
-#
 # FUTURE FEATURES
 #
 # - Nested scopes
@@ -76,6 +74,7 @@ module Raspp
       @file     = file
       @line     = line
       @scope    = Scope.new(nil)
+      @delims   = []
 
       input.scan(TOKENS) do
         #p $~
@@ -99,6 +98,7 @@ module Raspp
         | \d \w*+                               # number
         | \[ (?<inc>[-+])?+                     # effective address begin
         |    (?<inc>[-+])?  \]                  # effective address end
+        | ,                                     # comma
         | (?: [ \t] | \\\n )++                  # whitespace
         | // [^\n]*+                            # ignored: comment
         | (?: [^ \t\w\n@$.\[\]\-+/\\"]          # ignored: misc
@@ -116,6 +116,15 @@ module Raspp
     # Identify mnemonics that are pseudo-ops, not instructions.
     PSEUDO = %r{ ^\. | \$ }x
 
+    # Registers and other recognized identifiers
+    SPECIAL_IDS = %w[
+      a0 a1 a2 a3 a4 a5 a6 a7 fp sp
+      d0 d1 d2 d3 d4 d5 d6 d7
+      pc sr ccr bc
+      vbr cacr acr0 acr1 mbar rambar
+    ]
+    .reduce({}) { |h, id| h[id] = true; h }
+
     def collect_handlers
       handlers = Hash.new(method(:on_other))
       {
@@ -125,6 +134,7 @@ module Raspp
         on_num: [ *?0..?9 ],
         on_arg: [ ?@  ],
         on_var: [ ?$  ],
+        on_sep: [ ?,  ],
         on_eol: [ ?\n ],
         on_boa: [ ?[  ],
         on_eoa: [ ?], ?+, ?- ],
@@ -144,8 +154,9 @@ module Raspp
       deƒ  = match[:def]
       used = nil
 
-      unless @kind
-        @kind = PSEUDO =~ id ? :pseudo : :instr
+      unless @state
+        # Instruction/directive mnemonic
+        @state = PSEUDO =~ id ? :other : :at_operand
         print match[0]
         return
       end
@@ -166,30 +177,32 @@ module Raspp
         (used ||= {})[id] = true
       end
 
+      in_operand !SPECIAL_IDS[id]
       print id
     end
 
     def on_num(match)
-      @kind ||= :pseudo
-      if @kind == :instr
-        print "##{match[0]}"
-      else
-        print match[0]
-      end
+      in_operand true
+      print match[0]
     end
 
     def on_arg(match)
-      @kind ||= :pseudo
+      in_operand
       print "ARG(#{match[:id]})"
     end
 
     def on_var(match)
-      @kind ||= :pseudo
+      in_operand
       print "VAR(#{match[:id]})"
     end
 
+    def on_sep(match)
+      next_operand
+      print match[0]
+    end
+
     def on_eol(match)
-      @kind = nil
+      @state = nil
       puts
       scope = match[:scope] or return
       if scope.empty?
@@ -201,17 +214,19 @@ module Raspp
     end
 
     def on_boa(match)
-      @kind ||= :pseudo
+      in_operand
+      push_delim '['
       print "#{match[:inc]}("
     end
 
     def on_eoa(match)
-      @kind ||= :pseudo
+      in_operand
+      pop_delim '['
       print ")#{match[:inc]}"
     end
 
     def on_other(match)
-      @kind ||= :pseudo
+      in_operand
       print match[0]
     end
 
@@ -229,6 +244,35 @@ module Raspp
       text.scan(LABELS) do
         id = $1 or break
         @scope.labels[id] = "L$#{id}"
+      end
+    end
+
+    # Delimiter Tracking
+
+    def push_delim(s)
+      @delims.push s if s
+    end
+
+    def pop_delim(s)
+      @delims.pop if @delims.first == s
+    end
+
+    def in_delim?
+      !@delims.empty?
+    end
+
+    # Immediate Prefix Insertion
+
+    def in_operand(immediate = false)
+      if (@state ||= :other) == :at_operand
+        print '#' if immediate
+        @state = :in_operand
+      end
+    end
+
+    def next_operand
+      if (@state ||= :other) == :in_operand && !in_delim?
+        @state = :at_operand
       end
     end
   end # Processor

@@ -80,6 +80,30 @@ module Raspp
 
       '
     end
+
+    def test_imm_id
+      assert_pp '
+        foo a, d0, b
+      ', '
+        foo #a, d0, #b
+      '
+    end
+
+    def test_imm_num
+      assert_pp '
+        foo 1, 2
+      ', '
+        foo #1, #2
+      '
+    end
+
+    def test_imm_indirect
+      assert_pp '
+        foo [a0, 0]
+      ', '
+        foo (a0, 0)
+      '
+    end
   end
 end
 
