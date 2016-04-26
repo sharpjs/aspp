@@ -102,6 +102,7 @@ module Raspp
         | \d \w*+                               # number
         | \[ (?<inc>[-+])?+                     # effective address begin
         |    (?<inc>[-+])?  \]                  # effective address end
+        | [(){}]                                # delimiter begin/end
         | ,                                     # comma
         | (?: [ \t] | \\\n )++                  # whitespace
         | // [^\n]*+                            # ignored: comment
@@ -138,10 +139,14 @@ module Raspp
         on_num: [ *?0..?9 ],
         on_arg: [ ?@  ],
         on_var: [ ?$  ],
-        on_sep: [ ?,  ],
-        on_eol: [ ?\n ],
         on_boa: [ ?[  ],
         on_eoa: [ ?], ?+, ?- ],
+        on_bop: [ ?(  ],
+        on_eop: [ ?)  ],
+        on_bob: [ ?{  ],
+        on_eob: [ ?}  ],
+        on_sep: [ ?,  ],
+        on_eol: [ ?\n ],
       }
       .each do |name, chars|
         chars.each { |c| handlers[c] = method(name) }
@@ -207,6 +212,7 @@ module Raspp
 
     def on_eol(match)
       @state = nil
+      @delims.clear
       puts
       scope = match[:scope] or return
       if scope.empty?
@@ -224,9 +230,36 @@ module Raspp
     end
 
     def on_eoa(match)
+      unless match[0].end_with?(']')
+        return on_other(match)
+      end
       in_operand
       pop_delim '['
       print ")#{match[:inc]}"
+    end
+
+    def on_bop(match)
+      in_operand true
+      push_delim '('
+      print '('
+    end
+
+    def on_eop(match)
+      in_operand
+      pop_delim '('
+      print ')'
+    end
+
+    def on_bob(match)
+      in_operand true
+      push_delim '{'
+      print '{'
+    end
+
+    def on_eob(match)
+      in_operand
+      pop_delim '{'
+      print '}'
     end
 
     def on_other(match)

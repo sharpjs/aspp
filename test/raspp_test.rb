@@ -104,6 +104,14 @@ module Raspp
         foo (a0, 0)
       '
     end
+
+    def test_imm_parens
+      assert_pp '
+        foo (a + b)
+      ', '
+        foo #(a + b)
+      '
+    end
   end
 end
 
