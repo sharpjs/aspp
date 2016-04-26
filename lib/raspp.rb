@@ -62,6 +62,10 @@
 #
 #     'a'           'a
 #
+# - Allow function declaration at BOF.
+#     Right now, seems like a Ruby regex bug?
+#     (?:\A|\n) doesn't work
+#
 
 module Raspp
   class Processor
