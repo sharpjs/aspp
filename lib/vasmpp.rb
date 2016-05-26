@@ -31,12 +31,22 @@
 module Vasmpp
   class Processor
     def process(input, output, name = "(stdin)", line = 1)
-      @in   = input
-      @out  = output
-      @name = name
-      @line = line
+      @in    = input
+      @out   = output
+      @name  = name
+      @line  = line
+      @state = :asm
 
-      @out.write(@in)
+      input.each_line { |line| process_line line }
+    end
+
+    private
+
+    def process_line(line)
+      case @state
+      when :asm
+        @out.print line
+      end
     end
   end
 end # Vasmpp
