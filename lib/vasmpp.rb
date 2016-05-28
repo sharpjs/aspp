@@ -37,16 +37,57 @@ module Vasmpp
       @line  = line
       @state = :asm
 
-      input.each_line { |line| process_line line }
+      input.scan(LINES) do |indent, id, line, eol|
+        if id
+          process_directive(id.to_sym, line)
+        else
+          process_text(indent, line)
+        end
+      end
     end
 
     private
 
-    def process_line(line)
-      case @state
-      when :asm
-        @out.print line
+    # Whitespace
+    WS   = %r{ [ \t]       }mx
+    EOL  = %r{ \n | \r\n?+ }mx
+    REST = %r{ [^\r\n]*+   }mx
+
+    # Quotes
+    RUBY  = %r{ ` (?: [^`]   | ``    )*+ `?+ }mx
+    CHAR  = %r{ ' (?: [^'\\] | \\.?+ )*+ '?+ }mx
+    STR   = %r{ " (?: [^"\\] | \\.?+ )*+ "?+ }mx
+    QUOTE = %r{ #{RUBY} | #{CHAR} | #{STR} }mx
+
+    # Identifiers
+    ID = %r{ (?> \b (?!\d) [\w.$]++ ) }mx
+
+    # Logical lines
+    LINES = %r{
+      \G (?!\z)
+      (?<indent> #{WS}*+(?!\#) )
+      (?:        @ (?<id>#{ID}?+) #{WS}++ )?+
+      (?<line>   (?: [^ \t\r\n`'"#\\] | #{WS}++(?!\#) | #{QUOTE} | \\.?+ )*+ )
+      (?:        #{WS}*+ \# #{REST} )?+
+      (?<eol>    #{EOL} | \z )
+    }mx
+
+    def process_directive(id, args)
+      case id
+      when :''
+        @out.puts '<>'
+      when :def
+        @out.puts '<def>'
+      else
+        raise "unrecognized preprocessor directive: '#{id}'"
       end
+    end
+
+    def process_text(*line)
+       case @state
+       when :asm
+         @out.print line.inspect
+       end
     end
   end
 end # Vasmpp
