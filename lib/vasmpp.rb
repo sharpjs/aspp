@@ -34,61 +34,91 @@ module Vasmpp
       @in    = input
       @out   = output
       @name  = name
-      @line  = line
       @state = :asm
 
-      input.scan(LINES) do |indent, id, line, eol|
-        if id
-          process_directive(id.to_sym, line)
-        else
-          process_text(indent, line)
-        end
+      each_logical_line(input) do |index, text|
+        $stderr.puts "#{index}: |#{text}|"
       end
     end
 
     private
 
     # Whitespace
-    WS   = %r{ [ \t]       }mx
-    EOL  = %r{ \n | \r\n?+ }mx
-    REST = %r{ [^\r\n]*+   }mx
+    WS    = /[ \t]/
 
     # Quotes
-    RUBY  = %r{ ` (?: [^`]   | ``    )*+ `?+ }mx
-    CHAR  = %r{ ' (?: [^'\\] | \\.?+ )*+ '?+ }mx
-    STR   = %r{ " (?: [^"\\] | \\.?+ )*+ "?+ }mx
-    QUOTE = %r{ #{RUBY} | #{CHAR} | #{STR} }mx
+    RUBY  = / ` (?: [^`]   | ``    )*+ `?+ /x
+    CHAR  = / ' (?: [^'\\] | \\.?+ )*+ '?+ /x
+    STR   = / " (?: [^"\\] | \\.?+ )*+ "?+ /x
+    QUOTE = / #{RUBY} | #{CHAR} | #{STR}   /x
 
-    # Identifiers
-    ID = %r{ (?> \b (?!\d) [\w.$]++ ) }mx
+    # Line for pass 1
+    LINE = %r{
+      \A
+      (?<indent> (?: #{WS}*+ (?!\#) )?+ )
+      (?<text>   (?: [^`'"# \t\r\n\\]
+                   | #{WS}++ (?!\#)
+                   | #{QUOTE}
+                   | \\ (?!\z)
+                 )*+
+      )
+      (?: (?<con> \\ )
+        | (?<com> #{WS}*+ \# .*+ )
+      )?+
+      \z
+    }x
 
-    # Logical lines
-    LINES = %r{
-      \G (?!\z)
-      (?<indent> #{WS}*+(?!\#) )
-      (?:        @ (?<id>#{ID}?+) #{WS}++ )?+
-      (?<line>   (?: [^ \t\r\n`'"#\\] | #{WS}++(?!\#) | #{QUOTE} | \\.?+ )*+ )
-      (?:        #{WS}*+ \# #{REST} )?+
-      (?<eol>    #{EOL} | \z )
-    }mx
+    def each_logical_line(input)
+      index  = 1    # line number
+      height = 1    # count of raw lines in this logical line
+      prior  = nil  # continued prior logical line, if any
 
-    def process_directive(id, args)
-      case id
-      when :''
-        @out.puts '<>'
-      when :def
-        @out.puts '<def>'
-      else
-        raise "unrecognized preprocessor directive: '#{id}'"
+      input.each_line do |text|
+        # Remove trailing EOL
+        text.chomp!
+
+        $stderr.puts text.inspect
+
+        # Find 
+        m = LINE.match(text)
+
+        # Apply prior line continuation
+        text = prior ? prior << m[:text] : m[:indent] + m[:text]
+
+        # Check for line continuation
+        if m[:con]
+          height += 1
+          prior   = text
+          next
+        end
+
+        # Pass to next stage
+        yield index, text
+
+        # Advance position
+        index += height
+        height = 1
+        prior  = nil
       end
     end
 
-    def process_text(*line)
-       case @state
-       when :asm
-         @out.print line.inspect
-       end
-    end
+    #def process_directive(id, args)
+    #  case id
+    #  when :''
+    #    @out.puts '<>'
+    #  when :def
+    #    @out.puts '<def>'
+    #  else
+    #    raise "unrecognized preprocessor directive: '#{id}'"
+    #  end
+    #end
+
+    #def process_text(*line)
+    #   case @state
+    #   when :asm
+    #     @out.print line.inspect
+    #   end
+    #end
   end
 end # Vasmpp
 
