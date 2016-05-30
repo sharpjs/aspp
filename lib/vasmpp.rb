@@ -44,7 +44,8 @@ module Vasmpp
     private
 
     # Whitespace
-    WS    = /[ \t]/
+    WS    = / [ \t]       /x
+    EOL   = / \n | \r\n?+ /x
 
     # Quotes
     RUBY  = / ` (?: [^`]   | ``    )*+ `?+ /x
@@ -52,54 +53,56 @@ module Vasmpp
     STR   = / " (?: [^"\\] | \\.?+ )*+ "?+ /x
     QUOTE = / #{RUBY} | #{CHAR} | #{STR}   /x
 
-    # Line for pass 1
-    LINE = %r{
-      \A
-      (?<indent> (?: #{WS}*+ (?!\#) )?+ )
-      (?<text>   (?: [^`'"# \t\r\n\\]
-                   | #{WS}++ (?!\#)
-                   | #{QUOTE}
-                   | \\ (?!\z)
-                 )*+
+    # Tokens for pass 1
+    PASS1 = %r{
+      \G (?!\z)
+      (?<ws>  #{WS}*+ )
+      (?<tok> [^`'"# \t\r\n\\]++
+            | #{QUOTE}
+            | \\ (?: #{EOL} #{WS}*+ )?+
+            | (?: \# [^\r\n]*+ )?+ (?: #{EOL} | \z )
       )
-      (?: (?<con> \\ )
-        | (?<com> #{WS}*+ \# .*+ )
-      )?+
-      \z
     }x
 
+    PASS1_HANDLERS = {
+      nil => :pass1_eol,
+      ?\r => :pass1_eol,
+      ?\n => :pass1_eol,
+      ?\\ => :pass1_backslash,
+    }
+
     def each_logical_line(input)
-      index  = 1    # line number
-      height = 1    # count of raw lines in this logical line
-      prior  = nil  # continued prior logical line, if any
+      @line   = ''.dup   # line text
+      @index  = 1        # line number
+      @height = 1        # count of raw lines in this logical line
 
-      input.each_line do |text|
-        # Remove trailing EOL
-        text.chomp!
-
-        $stderr.puts text.inspect
-
-        # Find 
-        m = LINE.match(text)
-
-        # Apply prior line continuation
-        text = prior ? prior << m[:text] : m[:indent] + m[:text]
-
-        # Check for line continuation
-        if m[:con]
-          height += 1
-          prior   = text
-          next
-        end
-
-        # Pass to next stage
-        yield index, text
-
-        # Advance position
-        index += height
-        height = 1
-        prior  = nil
+      input.scan(PASS1) do |ws, tok|
+        send(PASS1_HANDLERS[tok[0]] || :pass1_other, ws, tok)
       end
+    end
+
+    def pass1_eol(ws, tok)
+      pass2
+      @line   = ''.dup
+      @index += @height
+      @height = 1
+    end
+
+    def pass1_backslash(ws, tok)
+        if tok.length == 1
+          @line << tok
+        else
+          @line << " "
+          @height += 1
+        end
+    end
+
+    def pass1_other(ws, tok)
+      @line << ws << tok
+    end
+
+    def pass2
+      $stderr.puts "#{@index}: |#{@line}|"
     end
 
     #def process_directive(id, args)
