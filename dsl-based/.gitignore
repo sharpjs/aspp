@@ -1,0 +1,17 @@
+# Ruby files
+*.gem
+
+# Build products
+*.o
+*.out
+
+# Temporary files
+temp*
+tmp*
+
+# Vim
+*.sw?
+
+# Mac OS X
+.DS_Store
+

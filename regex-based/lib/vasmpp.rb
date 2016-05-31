@@ -20,28 +20,40 @@
 #
 # IMPLEMENTED FEATURES
 #
-# (none)
+# - Comment removal
 #
-# FUTURE FEATURES:
+#     # comment
 #
-# - Inline aliases
-# ?
+# - Line continuation
 #
+#     this is  \        => this is all one line
+#       all one line    
+#
+# - Inline Ruby code
+#
+#     `code`
+#
+# FUTURE FEATURES
+#
+# - 
+#
+
 
 module Vasmpp
   class Processor
     def process(input, output, name = "(stdin)", line = 1)
-      @in    = input
-      @out   = output
-      @name  = name
-      @state = :asm
-
-      each_logical_line(input) do |index, text|
-        $stderr.puts "#{index}: |#{text}|"
-      end
+      pass2 = Pass2.new(output)
+      pass1 = Pass1.new(pass2)
+      pass1.process(input)
     end
+  end
 
-    private
+  private
+
+  class Pass1
+    def initialize(pass2)
+      @pass2 = pass2
+    end
 
     # Whitespace
     WS    = / [ \t]       /x
@@ -54,7 +66,7 @@ module Vasmpp
     QUOTE = / #{RUBY} | #{CHAR} | #{STR}   /x
 
     # Tokens for pass 1
-    PASS1 = %r{
+    TOKENS = %r{
       \G (?!\z)
       (?<ws>  #{WS}*+ )
       (?<tok> [^`'"# \t\r\n\\]++
@@ -64,31 +76,35 @@ module Vasmpp
       )
     }x
 
-    PASS1_HANDLERS = {
-      nil => :pass1_eol,
-      ?\r => :pass1_eol,
-      ?\n => :pass1_eol,
-      ?\\ => :pass1_backslash,
+    HANDLERS = {
+      nil => :on_eol,
+      ?\r => :on_eol,
+      ?\n => :on_eol,
+      ?\# => :on_eol,
+      ?\` => :on_ruby,
+      ?\' => :on_string,
+      ?\" => :on_string,
+      ?\\ => :on_backslash,
     }
 
-    def each_logical_line(input)
+    def process(input)
       @line   = ''.dup   # line text
       @index  = 1        # line number
       @height = 1        # count of raw lines in this logical line
 
-      input.scan(PASS1) do |ws, tok|
-        send(PASS1_HANDLERS[tok[0]] || :pass1_other, ws, tok)
+      input.scan(TOKENS) do |ws, tok|
+        send(HANDLERS[tok[0]] || :on_other, ws, tok)
       end
     end
 
-    def pass1_eol(ws, tok)
-      pass2
+    def on_eol(ws, tok)
+      @pass2.process(@index, @line)
       @line   = ''.dup
       @index += @height
       @height = 1
     end
 
-    def pass1_backslash(ws, tok)
+    def on_backslash(ws, tok)
         if tok.length == 1
           @line << tok
         else
@@ -97,13 +113,32 @@ module Vasmpp
         end
     end
 
-    def pass1_other(ws, tok)
-      @line << ws << tok
+    def on_ruby(ws, tok)
+      ruby = tok[1..-2].gsub('``', '`')
+      @line << ws << eval(ruby).to_s
     end
 
-    def pass2
-      $stderr.puts "#{@index}: |#{@line}|"
+    def on_string(ws, tok)
+      @line << ws << tok.gsub(EOL) do |n|
+        @height += 1
+        n.inspect[1..-2]
+      end
     end
+
+    def on_other(ws, tok)
+      @line << ws << tok
+    end
+  end
+
+  class Pass2
+    def initialize(output)
+      @output = output
+    end
+
+    def process(index, line)
+      $stderr.puts "#{index}: |#{line}|"
+    end
+  end
 
     #def process_directive(id, args)
     #  case id
@@ -122,7 +157,6 @@ module Vasmpp
     #     @out.print line.inspect
     #   end
     #end
-  end
 end # Vasmpp
 
 if __FILE__ == $0
