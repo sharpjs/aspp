@@ -23,28 +23,69 @@
 module Raspp
   #using self
 
-  class Context
-    #attr_reader :_parent, :_local_prefix, :_local_index, :_out_stream
+  class CleanObject < BasicObject
+    # public  methods: __send__, __eval__, __exec__, __id__
+    # private methods: initialize, method_missing
 
-    #def initialize(parent = nil, name = nil, out = nil)
-    #  @_parent       = parent
-    #  @_local_prefix = parent ? "#{parent.local(name)}." : ".L."
-    #  @_local_index  = 0
-    #  @_out_stream   = out || parent && parent._out_stream || $stdout
-    #end
+    define_method :__send__, ::Object.instance_method(:public_send)
+    define_method :__eval__,          instance_method(:instance_eval)
+    define_method :__exec__,          instance_method(:instance_exec)
 
-    #def method_missing(sym, *args, &block)
-    #  @_parent ? @_parent.send(sym, *args, &block) : super
-    #end
+    undef_method  :!, :!=, :==, :equal?, :instance_eval, :instance_exec,
+                  :singleton_method_added,
+                  :singleton_method_removed,
+                  :singleton_method_undefined
+  end
 
-    #def respond_to_missing?(sym, all)
-    #  @_parent && @_parent.respond_to?(sym, all)
-    #end
+  class ContextProxy < CleanObject
+    undef_method :__id__
+    private
+    
+    def method_missing(name, *args, &block)
+      RASPP_CONTEXT.__send__(name, *args, &block)
+    end
 
-    #def printf (*args) @_out_stream.printf *args end
-    #def print  (*args) @_out_stream.print  *args end
-    #def puts   (*args) @_out_stream.puts   *args end
-    #def putc   (*args) @_out_stream.putc   *args end
+    def respond_to_missing?(name, all)
+      RASPP_CONTEXT.respond_to?(name, false)
+    end
+
+    def self.const_missing(name)
+      ::Object.const_get(name)
+    end
+  end
+
+  class Context < CleanObject
+    def initialize(parent=nil, name=nil, out=nil)
+      @parent       = parent
+      @local_prefix = parent ? "#{parent.local(name)}." : ".L."
+      @local_index  = 0
+      @out          = out || $stdout
+    end
+
+    def eval(ruby, name="(stdin)", line=1)
+      ContextProxy
+        .dup.tap { |c| c.const_set(:RASPP_CONTEXT, self) }
+        .new.__eval__(ruby, name, line)
+    end
+
+    def method_missing(name, *args, &block)
+      @parent ? @parent.__send__(name, *args, &block) : super
+    end
+
+    def respond_to_missing?(name, all)
+      @parent && @parent.respond_to?(name, all)
+    end
+
+    private :method_missing, :respond_to_missing?
+
+    def at
+      puts "hi"
+    end
+
+    def printf *args; @out.printf *args; end
+    def print  *args; @out.print  *args; end
+    def puts   *args; @out.puts   *args; end
+    def putc   *args; @out.putc   *args; end
 
     #def equ (sym, val) dir :".equ", sym, val; sym end
     #def eqv (sym, val) dir :".eqv", sym, val; sym end
@@ -77,12 +118,12 @@ module Raspp
 
     #def local(sym = nil)
     #  if sym.nil?
-    #    sym = @_local_index += 1
+    #    sym = @local_index += 1
     #  else
     #    sym = sym.to_s
     #    sym.slice! /^[$@]/
     #  end
-    #  :"#{@_local_prefix}#{sym}"
+    #  :"#{@local_prefix}#{sym}"
     #end
 
     #def skip(count, fill = nil)
