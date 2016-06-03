@@ -19,6 +19,7 @@
 
 #require_relative 'block'
 require_relative 'refinements'
+require_relative 'operand'
 
 module Raspp
   using self
@@ -97,7 +98,7 @@ module Raspp
     # Symbols
 
     def eq sym, val
-      @out.define_symbol sym, val
+      @out.define_symbol sym.to_symbol(self), val.to_term(self)
     end
 
     ##

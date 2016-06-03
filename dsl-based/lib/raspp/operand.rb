@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 #
 # This file is part of Raspp.
 # Copyright (C) 2016 Jeffrey Sharp
@@ -21,7 +22,7 @@ require_relative 'refinements'
 module Raspp
   using self
 
-  module Term
+  class Term
     def to_term(ctx)
       self
     end
@@ -31,30 +32,23 @@ module Raspp
     end
   end
 
-  module Operand
-    include Term
-
+  class Operand < Term
     def for_inst
       self
     end
   end
 
-  module Register
-    include Operand
-
+  class Register < Operand
     def to_term(ctx)
-      if ctx._reg_available?(self)
+      #if ctx._reg_available?(self)
         self 
-      else
-        raise "register not available in this context: #{self}"
-      end
+      #else
+      #  raise "register not available in this context: #{self}"
+      #end
     end
   end
 
-  module ReadOnly end
-
-  class Expression
-    include ReadOnly, Term
+  class Expression < Term
     define_asm_unary_ops
     define_asm_binary_ops
   end
@@ -65,13 +59,18 @@ module Raspp
     def to_s
       @expr.to_asm
     end
+
+    #def prec
+    #  100
+    #end
   end
 
   class UnaryOp < Expression
     struct :op, :expr
 
     def to_term(ctx)
-      (expr = @expr.to_term(ctx)).equal?(@expr) \
+      expr = @expr.to_term(ctx)
+      expr.equal?(@expr) \
         ? self
         : self.class.new(op, expr)
     end
@@ -79,14 +78,19 @@ module Raspp
     def to_s
       "#{@op}#{@expr.to_asm}"
     end
+
+    #def prec
+    #  op.prec
+    #end
   end
 
   class BinaryOp < Expression
     struct :op, :lhs, :rhs
 
     def to_term(ctx)
-      (lhs = @lhs.to_term(ctx)).equal?(@lhs) &
-      (rhs = @rhs.to_term(ctx)).equal?(@rhs) \
+      lhs = @lhs.to_term(ctx)
+      rhs = @rhs.to_term(ctx)
+      lhs.equal?(@lhs) && rhs.equal?(@rhs) \
         ? self
         : self.class.new(op, lhs, rhs)
     end
@@ -94,6 +98,10 @@ module Raspp
     def to_s
       "(#{@lhs.to_asm} #{@op} #{@rhs.to_asm})"
     end
+
+    #def prec
+    #  op.prec
+    #end
   end
 end
 

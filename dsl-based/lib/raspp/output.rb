@@ -57,8 +57,8 @@ class Output
 
   def write_directive(name, *args)
     @out.puts args.empty? \
-      ? "\t#{op}"
-      : "\t#{op}\t#{args.join(', ')}"
+      ? "\t#{name}"
+      : "\t#{name}\t#{args.join(', ')}"
   end
 
   def source_location(depth = 0)
@@ -89,7 +89,7 @@ end
 #
 class VasmMot < Output
   def local_prefix
-    '._'
+    '.L.'
   end
 
   def write_label(sym)
@@ -97,8 +97,7 @@ class VasmMot < Output
   end
 
   def define_symbol(name, value)
-    @out.puts 
-    write_directive :'equ', name, value
+    @out.puts "#{name} = #{value}"
   end
 end
 
