@@ -101,7 +101,7 @@ module Raspp
     # with both start and end labels.
     #
     def at sym = nil
-      sym = sym || local # sym ? sym.to_symbol(self) : local
+      sym = sym ? sym.to_symbol(self) : local
       @out.write_label "#{sym}:"
       #if block_given?
       #  yield block = Block.new(sym)
