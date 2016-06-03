@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 #
 # This file is part of Raspp.
 # Copyright (C) 2016 Jeffrey Sharp
@@ -41,77 +42,77 @@ module Raspp
     end
   end
 
-  refine Module do
-    # Defines read-only accessor methods, corresponding instance variables,
-    # and an initializer method that sets the instance variables.
-    #
-    def struct(*names)
-      attr_reader *names
+  #refine Module do
+  #  # Defines read-only accessor methods, corresponding instance variables,
+  #  # and an initializer method that sets the instance variables.
+  #  #
+  #  def struct(*names)
+  #    attr_reader *names
 
-      class_eval <<-EOS
-        def initialize(#{names.join(', ')})
-          #{names.map { |n| "@#{n} = #{n}" }.join('; ')}
-        end
-      EOS
-      nil
-    end
+  #    class_eval <<-EOS
+  #      def initialize(#{names.join(', ')})
+  #        #{names.map { |n| "@#{n} = #{n}" }.join('; ')}
+  #      end
+  #    EOS
+  #    nil
+  #  end
 
-    # Defines unary operators that produce assembler expressions.
-    #
-    def define_asm_unary_ops
-      # Define operators
-      define_method(:-@) { UnaryOp.new(:-, self) }
-      define_method(:~ ) { UnaryOp.new(:~, self) }
-      nil
-    end
+  #  # Defines unary operators that produce assembler expressions.
+  #  #
+  #  def define_asm_unary_ops
+  #    # Define operators
+  #    define_method(:-@) { UnaryOp.new(:-, self) }
+  #    define_method(:~ ) { UnaryOp.new(:~, self) }
+  #    nil
+  #  end
 
-    # Defines binary operators that produce assembler expressions.
-    #
-    def define_asm_binary_ops
-      # Returns true if +rhs+ can form a binary expression with the receiver.
-      define_method(:binary_op_with?) do |rhs|
-        case rhs
-        when Numeric    then !self.is_a?(Numeric)
-        when Symbol     then true
-        when Expression then true
-        end
-      end
+  #  # Defines binary operators that produce assembler expressions.
+  #  #
+  #  def define_asm_binary_ops
+  #    # Returns true if +rhs+ can form a binary expression with the receiver.
+  #    define_method(:binary_op_with?) do |rhs|
+  #      case rhs
+  #      when Numeric    then !self.is_a?(Numeric)
+  #      when Symbol     then true
+  #      when Expression then true
+  #      end
+  #    end
 
-      # Define operators
-      %i[* / % + - << >> & ^ | == != < <= > >= && ||]
-      .each do |op|
-        define_method(op) do |rhs|
-          if binary_op_with?(rhs)
-            BinaryOp.new(op, self, rhs)
-          else
-            super(rhs)
-          end
-        end
-      end
+  #    # Define operators
+  #    %i[* / % + - << >> & ^ | == != < <= > >= && ||]
+  #    .each do |op|
+  #      define_method(op) do |rhs|
+  #        if binary_op_with?(rhs)
+  #          BinaryOp.new(op, self, rhs)
+  #        else
+  #          super(rhs)
+  #        end
+  #      end
+  #    end
 
-      # Aliases to invoke && || operators, which Ruby cannot override.
-      alias_method :and, :'&&'
-      alias_method :or,  :'||'
-      nil
-    end
-  end
+  #    # Aliases to invoke && || operators, which Ruby cannot override.
+  #    alias_method :and, :'&&'
+  #    alias_method :or,  :'||'
+  #    nil
+  #  end
+  #end
 
   refine Fixnum do
-    def to_term(ctx)
-      Constant.new(self)
-    end
+  #  def to_term(ctx)
+  #    Constant.new(self)
+  #  end
 
     def to_asm
       self < 10 ? to_s : "0x#{to_s(16)}"
     end
 
-    define_asm_binary_ops
+  #  define_asm_binary_ops
   end
 
   refine Symbol do
-    def to_term(ctx)
-      Constant.new(to_symbol(ctx))
-    end
+  #  def to_term(ctx)
+  #    Constant.new(to_symbol(ctx))
+  #  end
 
     def to_symbol(ctx)
       local? ? ctx.local(self) : self
@@ -121,12 +122,8 @@ module Raspp
       to_s.start_with?('$', '@')
     end
 
-    def end
-      :"#{self}.end"
-    end
-
-    define_asm_unary_ops
-    define_asm_binary_ops
+  #  define_asm_unary_ops
+  #  define_asm_binary_ops
   end
 
   refine String do

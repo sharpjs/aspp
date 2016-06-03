@@ -18,10 +18,10 @@
 #
 
 #require_relative 'block'
-#require_relative 'refinements'
+require_relative 'refinements'
 
 module Raspp
-  #using self
+  using self
 
   class CleanObject < BasicObject
     # public  methods: __send__, __eval__, __exec__, __id__
