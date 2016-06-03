@@ -68,6 +68,8 @@ module Raspp
         .new.__eval__(ruby, name, line)
     end
 
+    private
+
     def method_missing(name, *args, &block)
       @parent ? @parent.__send__(name, *args, &block) : super
     end
@@ -76,16 +78,23 @@ module Raspp
       @parent && @parent.respond_to?(name, all)
     end
 
-    private :method_missing, :respond_to_missing?
+    public
 
-    def warn *args
-      @out.message *args
-      # add warning count
-    end
+    # Messages
 
     def info *args
-      @out.message *args
+      @out.log_info *args
     end
+
+    def warning *args
+      @out.log_warning *args
+    end
+
+    def error *args
+      @out.log_error *args
+    end
+
+    # Symbols
 
     def eq sym, val
       @out.define_symbol sym, val

@@ -20,14 +20,31 @@
 class Output
   attr_reader :out, :err
 
-  def initialize(out=nil, err=nil)
+  def initialize(out = nil, err = nil)
     @out = out || $stdout
-    @err = err || $stdout
+    @err = err || $stderr
   end
 
-  def message(*args)
+  def warnings?; !!@warnings; end
+  def errors?;   !!@errors;   end
+
+  def log_info(*args)
+    write_message :'INFO', *args
+  end
+
+  def log_warning(*args)
+    write_message :WARNING, *args
+    @warnings = true
+  end
+
+  def log_error(*args)
+    write_message :ERROR, *args
+    @errors = true
+  end
+
+  def write_message(severity, *args)
     loc = source_location
-    @out.puts *args.map { |arg| "#{loc}: #{arg}" }
+    @out.puts *args.map { |arg| "#{loc}: #{severity}: #{arg}" }
   end
 
   def write_label(sym)
@@ -45,7 +62,7 @@ class Output
   end
 
   def source_location(depth = 0)
-    loc = ::Kernel.caller_locations(depth + 5, 1).first;
+    loc = ::Kernel.caller_locations(depth + 6, 1).first;
     "#{loc.path}:#{loc.lineno}"
   end
 end
