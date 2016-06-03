@@ -21,6 +21,7 @@
 #
 
 require_relative "raspp/top_level"
+require_relative "raspp/output"
 
 if __FILE__ == $0
   # Running as a script
@@ -35,7 +36,9 @@ if __FILE__ == $0
 
   # Process each specified file
   loop do
-    Raspp::TopLevel.new.eval(ARGF.file.read, ARGF.filename)
+    Raspp::TopLevel
+      .new(VasmMot.new)
+      .eval(ARGF.file.read, ARGF.filename)
     ARGF.skip
     break if ARGV.empty?
   end

@@ -55,11 +55,11 @@ module Raspp
   end
 
   class Context < CleanObject
-    def initialize(parent=nil, name=nil, out=nil)
+    def initialize(out, parent=nil, name=nil)
+      @out          = out
       @parent       = parent
-      @local_prefix = parent ? "#{parent.local(name)}." : ".L."
+      @local_prefix = parent ? "#{parent.local(name)}." : out.local_prefix
       @local_index  = 0
-      @out          = out || $stdout
     end
 
     def eval(ruby, name="(stdin)", line=1)
@@ -78,53 +78,53 @@ module Raspp
 
     private :method_missing, :respond_to_missing?
 
-    def at
-      puts "hi"
+    def warn *args
+      @out.message *args
+      # add warning count
     end
 
-    def printf *args; @out.printf *args; end
-    def print  *args; @out.print  *args; end
-    def puts   *args; @out.puts   *args; end
-    def putc   *args; @out.putc   *args; end
+    def info *args
+      @out.message *args
+    end
 
-    #def equ (sym, val) dir :".equ", sym, val; sym end
-    #def eqv (sym, val) dir :".eqv", sym, val; sym end
-    #def set (sym, val) dir :".set", sym, val; sym end
+    def eq sym, val
+      @out.define_symbol sym, val
+    end
 
-    ###
-    ## Defines a label.
     ##
-    ## If +sym+ is given, it is used as the label name.
-    ## Otherwise, a unique local label is generated.
-    ##
-    ## If a block is given, this method defines a code block
-    ## with both start and end labels.
-    ##
-    #def at(sym = nil)
-    #  sym = sym ? sym.to_symbol(self) : local
-    #  puts "#{sym}:"
-    #  if block_given?
-    #    yield block = Block.new(sym)
-    #    puts "#{block.end}:" if block.end_used?
-    #  end
-    #  sym
-    #end
+    # Defines a label.
+    #
+    # If +sym+ is given, it is used as the label name.
+    # Otherwise, a unique local label is generated.
+    #
+    # If a block is given, this method defines a code block
+    # with both start and end labels.
+    #
+    def at sym = nil
+      sym = sym || local # sym ? sym.to_symbol(self) : local
+      @out.write_label "#{sym}:"
+      #if block_given?
+      #  yield block = Block.new(sym)
+      #  puts "#{block.end}:" if block.end_used?
+      #end
+      sym
+    end
 
-    #def global(sym)
-    #  sym = sym.to_symbol(self)
-    #  puts ".global #{sym}"
-    #  sym
-    #end
+    def global(sym)
+      #sym = sym.to_symbol(self)
+      puts ".global #{sym}"
+      sym
+    end
 
-    #def local(sym = nil)
-    #  if sym.nil?
-    #    sym = @local_index += 1
-    #  else
-    #    sym = sym.to_s
-    #    sym.slice! /^[$@]/
-    #  end
-    #  :"#{@local_prefix}#{sym}"
-    #end
+    def local(sym = nil)
+      if sym.nil?
+        sym = @local_index += 1
+      else
+        sym = sym.to_s
+        sym.slice! /^[$@]/
+      end
+      :"#{@local_prefix}#{sym}"
+    end
 
     #def skip(count, fill = nil)
     #  dir :".skip", count, fill
@@ -158,15 +158,6 @@ module Raspp
     #def struct(sym = nil)
     #  addr 0
     #  yield if block_given?
-    #end
-
-    ## Writes a directive
-    #def dir(op, *args)
-    #  args.compact!
-    #  args.map! { |a| a.to_asm }
-    #  puts args.empty? \
-    #    ? "\t#{op}"
-    #    : "\t#{op}\t#{args.join(', ')}"
     #end
   end
 end
