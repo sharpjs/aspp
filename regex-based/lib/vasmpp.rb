@@ -143,11 +143,6 @@ module Vasmpp
       :continue
     end
 
-    def on_dq(m)
-      @text << m[0]
-      :continue
-    end
-
     def on_enter(m)
       @text << m[0]
       :continue
@@ -168,10 +163,37 @@ module Vasmpp
       :continue
     end
 
-    def on_quoted(m)
-      @ruby << m[0]
-      :continue
+    # Quoted Strings
+
+    def on_string_begin(m)
+      @text << m[:ws]
+      @string = ''.dup
+      @states.push STRING
     end
+
+    def on_string_text(m)
+      @string << m[0]
+    end
+
+    def on_string_escape(m)
+      if m[:eol]
+        @height += 1
+      else
+        on_string_text(m)
+      end
+    end
+
+    def on_string_eol(m)
+      raise "Unterminated string"
+    end
+
+    def on_string_end(m)
+      @text << @string.inspect
+      @string = nil
+      @states.pop
+    end
+
+    # Quoted Characters
 
     def on_bq_end(m)
       ruby  = @ruby
@@ -191,13 +213,10 @@ module Vasmpp
       :continue
     end
 
-    def on_dq_end(m)
-      @text << m[0]
-      nil
-    end
+    # Quoted Ruby
 
-    def on_dq_esc(m)
-      @text << m[0]
+    def on_ruby_text(m)
+      @ruby << m[0]
       :continue
     end
 
@@ -265,7 +284,7 @@ module Vasmpp
       on_at:       %W| @     |,
       on_bq:       %W| `     |,
       on_sq:       %W| '     |,
-      on_dq:       %W| "     |,
+      on_string_begin:       %W| "     |,
       on_enter:    %W| [ ( { |,
       on_leave:    %W| ] ) } |,
       on_comment:  %W| ;     |,
@@ -281,7 +300,7 @@ module Vasmpp
         | #{EOL}
       )
     }x,
-    0, :on_quoted,
+    0, :on_ruby_text,
     {
       on_bq_end:   %W| `     |,
       on_eol:      %W| \r \n |,
@@ -292,11 +311,11 @@ module Vasmpp
       \G (?!\z)
       (?: [^`'\\\r\n]++
         | [`']
-        | \\ (#{EOL}#{WS}*+|.)?+
+        | \\ (?: (?<eol> #{EOL} #{WS}*+ ) | . )?+
         | #{EOL}
       )
     }x,
-    0, :on_quoted,
+    0, :on_char_text,
     {
       on_bq:       %W| `     |,
       on_sq_end:   %W| "     |,
@@ -304,20 +323,20 @@ module Vasmpp
       on_eol:      %W| \r \n |,
     }
 
-  STR = State.new \
+  STRING = State.new \
     %r{
       \G (?!\z)
       (?: [^`"\\\r\n]++
         | [`"]
-        | \\ (#{EOL}#{WS}*+|.)?+
+        | \\ (?: (?<eol> #{EOL} #{WS}*+ ) | . )?+
         | #{EOL}
       )
     }x,
-    0, :on_quoted,
+    0, :on_string_text,
     {
       on_bq:       %W| `     |,
-      on_dq_end:   %W| "     |,
-      on_dq_esc:   %W| \\    |,
+      on_string_end:   %W| "     |,
+      on_string_escape:   %W| \\    |,
       on_eol:      %W| \r \n |,
     }
 
