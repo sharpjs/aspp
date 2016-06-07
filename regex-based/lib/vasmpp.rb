@@ -18,153 +18,354 @@
 # You should have received a copy of the GNU General Public License
 # along with vasmpp.  If not, see <http://www.gnu.org/licenses/>.
 #
-# IMPLEMENTED FEATURES
-#
-# - Comment removal
-#
-#     # comment
+# FEATURES
 #
 # - Line continuation
 #
-#     this is  \        => this is all one line
-#       all one line    
+#     all  \          => all one line
+#       one line    
+#
+# - Number Rewrite
+# 
+#     0x => $
+#     0o => @
+#     0b => %
+# 
+# - Addressing mode rewrite
+# 
+#     [ => (
+#     ] => )
+#     prepend # unless
+#               - arg starts with ( or [
+#               - arg is special name (e.g. register)
+#               - op is not an instruction
 #
 # - Inline Ruby code
 #
 #     `code`
 #
-# FUTURE FEATURES
+# - Preprocessor directive
+# 
+#     #foo bar baz    => pp.foo("bar baz")
+# 
+#     #foo bar baz    => pp.foo("bar baz", "qux\nzot")
+#         qux
+#         zot
+#     #end
+# 
+# - Expression aliases
+# 
+#     alias@original       (reset after every non-local label)
 #
-# - 
+# - Inline macros
 #
-
+#     FOO(x, y)
+#
+# - Directive macros
+#
+#     foo x, y
+# 
+# Tokens
+# - whitespace    [ \t]
+# - quotations    `..` '..' ".."
+# - identifiers   abcd
+# - numbers       0x1234
+# - comma         ,
+# - [ ] ( )       [ ] ( )
+# - # (at bol)    #
+# - @             #
+# - other
+# - eol           \n
+#
+# Process
+# - Lines assembled into logical lines
+# - Pass line to handler
+#
+# Regular handler
+# - Process as directive if % symbol, else continue
+# - Replace inline ruby
+# - Replace inline macros and aliases
+# - Replace statement-like macro
+# - Character replacements
+# - Auto-immediate
+#
 
 module Vasmpp
   class Processor
-    def process(input, output, name = "(stdin)", line = 1)
-      pass2 = Pass2.new(output)
-      pass1 = Pass1.new(pass2)
-      pass1.process(input)
+    def initialize(output)
+      @output = output
+      @inputs = []
+      @states = []
+      begin_line
+    end
+
+    def process(input, name = "(stdin)")
+      @inputs.push(Input.new(input, name))
+      @states.push(NORMAL)
+
+      loop do
+        input = @inputs.last
+        state = @states.last
+        break unless state.dispatch(input, self)
+      end
+    end
+
+    private
+
+    def on_id(m)
+      @text << m[0]
+      :continue
+    end
+
+    def on_num(m)
+      @text << m[0]
+      :continue
+    end
+
+    def on_other(m)
+      @text << m[0]
+      :continue
+    end
+
+    def on_at(m)
+      @text << m[0]
+      :continue
+    end
+
+    def on_bq(m)
+      @ruby = ''.dup
+      @states.push(RUBY)
+      :continue
+    end
+
+    def on_sq(m)
+      @text << m[0]
+      :continue
+    end
+
+    def on_dq(m)
+      @text << m[0]
+      :continue
+    end
+
+    def on_enter(m)
+      @text << m[0]
+      :continue
+    end
+
+    def on_leave(m)
+      @text << m[0]
+      :continue
+    end
+
+    def on_comment(m)
+      # ignore
+      :continue
+    end
+
+    def on_escape(m)
+      @text << m[0]
+      :continue
+    end
+
+    def on_quoted(m)
+      @ruby << m[0]
+      :continue
+    end
+
+    def on_bq_end(m)
+      ruby  = @ruby
+      @ruby = nil
+      @states.pop
+      @text << eval(ruby, TOPLEVEL_BINDING).to_s
+      nil
+    end
+
+    def on_sq_end(m)
+      @text << m[0]
+      nil
+    end
+
+    def on_sq_esc(m)
+      @text << m[0]
+      :continue
+    end
+
+    def on_dq_end(m)
+      @text << m[0]
+      nil
+    end
+
+    def on_dq_esc(m)
+      @text << m[0]
+      :continue
+    end
+
+    def on_eol(m)
+      # expand instruction-like macros here
+      # else...
+      @output.puts @text
+      @inputs.last.eol(@height)
+      begin_line
+      :continue
+    end
+
+    def begin_line
+      @text   = "".dup
+      @height = 1
     end
   end
 
   private
 
-  class Pass1
-    def initialize(pass2)
-      @pass2 = pass2
+  # ----------------------------------------------------------------------------
+
+  class State
+    def initialize(pattern, index, default, **actions)
+      @pattern = pattern
+      @index   = index
+      @actions = Hash.new(default).tap do |h|
+        actions.each do |name, chars|
+          chars.each { |c| h[c] = name }
+        end
+      end
     end
 
-    # Whitespace
-    WS    = / [ \t]       /x
-    EOL   = / \n | \r\n?+ /x
+    def dispatch(input, target)
+      input.match(@pattern) do |match|
+        token  = match[@index]
+        action = @actions[token[0]]
+        $stderr.puts "#{token.inspect} -> #{action}"
+        target.send(action, match)
+      end
+    end
+  end
 
-    # Quotes
-    RUBY  = / ` (?: [^`]   | ``    )*+ `?+ /x
-    CHAR  = / ' (?: [^'\\] | \\.?+ )*+ '?+ /x
-    STR   = / " (?: [^"\\] | \\.?+ )*+ "?+ /x
-    QUOTE = / #{RUBY} | #{CHAR} | #{STR}   /x
+  # Whitespace
+  WS  = / [ \t]       /x
+  EOL = / \n | \r\n?+ /x
 
-    # Tokens for pass 1
-    TOKENS = %r{
+  NORMAL = State.new \
+    %r{
       \G (?!\z)
       (?<ws>  #{WS}*+ )
-      (?<tok> [^`'"# \t\r\n\\]++
-            | #{QUOTE}
-            | \\ (?: #{EOL} #{WS}*+ )?+
-            | (?: \# [^\r\n]*+ )?+ (?: #{EOL} | \z )
+      (?<tok> #{EOL}                            (?# end of line  )
+            | (?> \b (?!\d) [\w.]++ \$?+ )      (?# identifier   )
+            | (?> \d (?: [\w.] | [eE][+-] )*+ ) (?# number       )
+            | [@`'"\[\](){}]                    (?# punctuator   )
+            | ; [^\r\n]*+                       (?# comment      )
+            | \\ (?: #{EOL} #{WS}*+ )?+         (?# espaced eol  )
+            | [^ \t\r\n\w.@`'"\[\](){}\\;]++    (?# other        )
       )
-    }x
-
-    HANDLERS = {
-      nil => :on_eol,
-      ?\r => :on_eol,
-      ?\n => :on_eol,
-      ?\# => :on_eol,
-      ?\` => :on_ruby,
-      ?\' => :on_string,
-      ?\" => :on_string,
-      ?\\ => :on_backslash,
+    }x,
+    :tok, :on_other,
+    {
+      on_id:       [*?a..?z, *?A..?Z, ?_, ?.],
+      on_num:      [*?0..?9],
+      on_at:       %W| @     |,
+      on_bq:       %W| `     |,
+      on_sq:       %W| '     |,
+      on_dq:       %W| "     |,
+      on_enter:    %W| [ ( { |,
+      on_leave:    %W| ] ) } |,
+      on_comment:  %W| ;     |,
+      on_escape:   %W| \\    |,
+      on_eol:      %W| \r \n |,
     }
 
-    def process(input)
-      @line   = ''.dup   # line text
-      @index  = 1        # line number
-      @height = 1        # count of raw lines in this logical line
+  RUBY = State.new \
+    %r{
+      \G (?!\z)
+      (?: [^`\r\n]++
+        | ` (`)?+
+        | #{EOL}
+      )
+    }x,
+    0, :on_quoted,
+    {
+      on_bq_end:   %W| `     |,
+      on_eol:      %W| \r \n |,
+    }
 
-      input.scan(TOKENS) do |ws, tok|
-        send(HANDLERS[tok[0]] || :on_other, ws, tok)
+  CHAR = State.new \
+    %r{
+      \G (?!\z)
+      (?: [^`'\\\r\n]++
+        | [`']
+        | \\ (#{EOL}#{WS}*+|.)?+
+        | #{EOL}
+      )
+    }x,
+    0, :on_quoted,
+    {
+      on_bq:       %W| `     |,
+      on_sq_end:   %W| "     |,
+      on_sq_esc:   %W| \\    |,
+      on_eol:      %W| \r \n |,
+    }
+
+  STR = State.new \
+    %r{
+      \G (?!\z)
+      (?: [^`"\\\r\n]++
+        | [`"]
+        | \\ (#{EOL}#{WS}*+|.)?+
+        | #{EOL}
+      )
+    }x,
+    0, :on_quoted,
+    {
+      on_bq:       %W| `     |,
+      on_dq_end:   %W| "     |,
+      on_dq_esc:   %W| \\    |,
+      on_eol:      %W| \r \n |,
+    }
+
+
+  # ----------------------------------------------------------------------------
+
+  class Scanner
+    attr_accessor :pos
+
+    def initialize(input)
+      @input = input
+      @pos   = 0
+    end
+
+    def match(pattern)
+      match = pattern.match(@input, @pos)
+      if match
+        @pos = match.end(0)
+        yield match
+        true
       end
-    end
-
-    def on_eol(ws, tok)
-      @pass2.process(@index, @line)
-      @line   = ''.dup
-      @index += @height
-      @height = 1
-    end
-
-    def on_backslash(ws, tok)
-        if tok.length == 1
-          @line << tok
-        else
-          @line << " "
-          @height += 1
-        end
-    end
-
-    def on_ruby(ws, tok)
-      ruby = tok[1..-2].gsub('``', '`')
-      @line << ws << eval(ruby).to_s
-    end
-
-    def on_string(ws, tok)
-      @line << ws << tok.gsub(EOL) do |n|
-        @height += 1
-        n.inspect[1..-2]
-      end
-    end
-
-    def on_other(ws, tok)
-      @line << ws << tok
     end
   end
 
-  class Pass2
-    def initialize(output)
-      @output = output
+  # ----------------------------------------------------------------------------
+
+  class Input < Scanner
+    attr_reader :name, :line, :parent
+
+    def initialize(input, name, parent = nil)
+      super(input)
+      @name   = name
+      @line   = 1
+      @parent = parent
     end
 
-    def process(index, line)
-      $stderr.puts "#{index}: |#{line}|"
+    def eol(n = 1)
+      @line += n
     end
   end
-
-    #def process_directive(id, args)
-    #  case id
-    #  when :''
-    #    @out.puts '<>'
-    #  when :def
-    #    @out.puts '<def>'
-    #  else
-    #    raise "unrecognized preprocessor directive: '#{id}'"
-    #  end
-    #end
-
-    #def process_text(*line)
-    #   case @state
-    #   when :asm
-    #     @out.print line.inspect
-    #   end
-    #end
 end # Vasmpp
 
 if __FILE__ == $0
   # Running as script
   trap "PIPE", "SYSTEM_DEFAULT"
-  processor = Vasmpp::Processor.new
+  processor = Vasmpp::Processor.new($stdout)
   loop do
-    processor.process(ARGF.file.read, $stdout, ARGF.filename)
+    processor.process(ARGF.file.read, ARGF.filename)
     ARGF.skip
     break if ARGV.empty?
   end
