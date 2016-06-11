@@ -39,6 +39,10 @@
 
 module Vasmpp
   class Processor
+    def initialize
+      @binding = Scope.dup.new.global
+    end
+
     def process(input, name = "(stdin)")
       @aliases = @aliases&.clear || Aliases.new
       @name    = name
@@ -106,7 +110,7 @@ module Vasmpp
     def eval(ruby)
       @height += ruby.count(?\n)
       begin
-        ::Kernel.eval(ruby, TOPLEVEL_BINDING, @name, @line)
+        ::Kernel.eval(ruby, @binding, @name, @line)
       rescue Exception => e
         error e
       end
@@ -134,6 +138,20 @@ module Vasmpp
 
   private
 
+  class Scope
+    def global
+      binding
+    end
+
+    def to_s
+      "(vasmpp)"
+    end
+
+    def inspect
+      "#<Vasmpp::Scope:0x#{__id__.to_s(16)}>"
+    end
+  end
+
   class Aliases
     def initialize
       @k2v = {}
@@ -158,6 +176,10 @@ module Vasmpp
     end
   end
 end # Vasmpp
+
+def import(name)
+  require_relative name
+end
 
 if __FILE__ == $0
   # Running as script
