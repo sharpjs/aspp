@@ -108,9 +108,27 @@ module Vasmpp
       begin
         ::Kernel.eval(ruby, TOPLEVEL_BINDING, @name, @line)
       rescue Exception => e
-        loc = e.backtrace_locations[0] # user backtrace only
-        $stderr.puts "#{loc.path}:#{loc.lineno}: error: #{e.message} (in `#{loc.label}`)"
+        error e
       end
+    end
+
+    def error(e)
+      locs = e.backtrace_locations
+        .reject { |l| is_own_file?(l.path) }
+
+      log locs.shift, e.message
+
+      locs.each do |loc|
+        log loc, "...called from here"
+      end
+    end
+
+    def is_own_file?(path)
+      path.end_with?("vasmpp.rb")
+    end
+
+    def log(loc, message)
+      $stderr.puts "#{loc.path}:#{loc.lineno}: #{message} (in #{loc.label})"
     end
   end
 
