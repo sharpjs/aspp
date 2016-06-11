@@ -105,7 +105,12 @@ module Vasmpp
 
     def eval(ruby)
       @height += ruby.count(?\n)
-      ::Kernel.eval(ruby, TOPLEVEL_BINDING, @name, @line)
+      begin
+        ::Kernel.eval(ruby, TOPLEVEL_BINDING, @name, @line)
+      rescue Exception => e
+        loc = e.backtrace_locations[0] # user backtrace only
+        $stderr.puts "#{loc.path}:#{loc.lineno}: error: #{e.message} (in `#{loc.label}`)"
+      end
     end
   end
 
@@ -141,7 +146,7 @@ if __FILE__ == $0
   trap "PIPE", "SYSTEM_DEFAULT"
   processor = Vasmpp::Processor.new
   loop do
-    processor.process(ARGF.file.read)
+    processor.process(ARGF.file.read, ARGF.filename)
     ARGF.skip
     break if ARGV.empty?
   end
