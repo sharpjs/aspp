@@ -59,9 +59,9 @@ module Aspp
     def test_unchanged
       assert_pp '
         foo
-      ', "
-        \tfoo
-      "
+      ', '
+        foo
+      '
     end
   end
 end

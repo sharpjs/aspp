@@ -80,19 +80,17 @@ module Aspp
       @height = 0     # input line height (i.e. count of embedded newlines)
       @aliases.clear  # identifier alias mappings
 
-      write_preamble
+      print Aspp::preamble(name)
 
-      # Process lines
       until @input.eos?
-        if op = scan_labels
-          # Line has an op mnemonic
-          print "\t", op
+        # Scan one logical line
+        if op = scan_labels_and_op
           scan_operands op
         else
-          # No mnemonic (label only, whitespace, cpp, etc.)
-          print scan(REST_OF_LINE)
+          scan_other
         end
 
+        # Advance to next line
         @line  += @height
         @height = 0
       end
@@ -100,29 +98,32 @@ module Aspp
 
     private
 
-    def scan_labels
+    def scan_labels_and_op
       while scan(LABEL_OR_OP)
         # Get captures
-        id   = @input[:id]
-        punc = @input[:punc]
+        ws  = @input[1] # leading whitespace
+        id  = @input[2] # identifier
+        lbl = @input[3] # label sigil - ':' or '::'
 
-        # Op is first unpunctuated id
-        return id unless punc
+        # First id without ':' is the op mnemonic
+        unless lbl
+          print ws, id
+          return id
+        end
 
-        # Write transformed label
+        # Transform label
         if local?(id)
-          id = localize(id)
-          label id
+          label localize(id)
         else
           start_scope id
           id = :scope
+          @aliases.clear
         end
 
         # Export label
-        export id if global?(punc)
+        export id if global?(lbl)
 
-        @aliases.clear
-        sync
+        sync if @height != 0
       end
     end
 
@@ -135,19 +136,25 @@ module Aspp
         when "]"  then print ")"
         when "#"  then print pseudo ? "_(#)" : "#"
         when "\n" then puts; return
-        else # identifier
+        else
           if id = @input[:id]
+            # identifier
             print idref(id, @input[:as])
           else
+            # ignored
             print tok
           end
         end
       end
     end
 
+    def scan_other
+      print scan(REST_OF_LINE)
+    end
+
     def scan(re)
-      @input.scan(re).tap do |s|
-        s and @height += s.count("\n")
+      @input.scan(re).tap do |text|
+        @height += text.count("\n") if text
       end
     end
 
@@ -156,41 +163,31 @@ module Aspp
     end
 
     def localize(id)
-      "L(#{id})"
+      "L(#{id[1..-1]})"
     end
 
-    def global?(punc)
-      punc == "::"
+    def global?(sigil)
+      sigil == "::"
     end
 
     def pseudo?(id)
       id.start_with?(".") || id.include?("$")
     end
 
-    def sync
-        puts %{# #{@line} "#{@name}"}
-    end
-
-    def write_preamble
-      puts Aspp::preamble(@name)
-    end
-
     def start_scope(id)
-      puts <<~EOS
-        ; SCOPE: #{id}
+      print <<~EOS
         #ifdef scope
         #undef scope
         #endif
         #define scope #{id}
-
         # #{@line} "#{@name}"
         .label scope
-
+        # #{@line} "#{@name}"
       EOS
     end
 
     def label(id)
-      puts "#{id}:"
+      print "#{id}:"
     end
 
     def export(id)
@@ -203,7 +200,15 @@ module Aspp
       else
         as = @aliases[id]
       end
-      as ?  "_(#{id})#{as}" : id
+
+      m = as || id
+      m = localize(m) if local?(m)
+
+      as ? "_(#{id})#{m}" : m
+    end
+
+    def sync
+        puts %{# #{@line} "#{@name}"}
     end
 
     WS  = %r{ (?: [ \t] | \\\n )*+ }x
@@ -212,7 +217,7 @@ module Aspp
 
     REST_OF_LINE = %r{ .*+ \n?+ }x
 
-    LABEL_OR_OP = %r{ #{WS} (?<id>#{ID}) (?<punc>::?+)?+ }x
+    LABEL_OR_OP = %r{ (#{WS}) (#{ID}) (::?+)?+ }x
 
     OPERAND_TOKEN = %r{
         # ignored
@@ -233,7 +238,7 @@ module Aspp
     }x
   end # Processor
 
-  def self.preamble(filename)
+  def self.preamble(name)
     <<~EOS
       # 1 "(asmpp-preamble)"
       .macro .label name:req              // default label behavior
@@ -243,8 +248,7 @@ module Aspp
       #define SCOPE(name) .L$name         // reference to scope
       #define L           .L$scope$name   // reference to local symbol
 
-      # 1 "#{@filename}"
-
+      # 1 "#{name}"
     EOS
   end
 
