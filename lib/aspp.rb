@@ -134,9 +134,11 @@ module Aspp
         when "#"  then print pseudo ? "_(#)" : "#"
         when "\n" then puts; return
         else # identifier
-          print (not id = @input[:id]) ? tok
-              : (not as = @input[:as]) ? "_(#{id})#{@aliases[id]}"
-              :                          "_(#{id})#{@aliases[id] = as}"
+          if id = @input[:id]
+            print idref(id, @input[:as])
+          else
+            print tok
+          end
         end
       end
     end
@@ -203,6 +205,15 @@ module Aspp
       puts ".global #{id}"
     end
 
+    def idref(id, as)
+      if as
+        @aliases[id] = as
+      else
+        as = @aliases[id]
+      end
+      as ?  "_(#{id})#{as}" : id
+    end
+
     WS  = %r{ (?: [ \t] | \\\n )*+ }x
     ID  = %r{ (?!\d) [\w.$]++ }x
     STR = %r{ " (?: [^\\"] | \\.?+ )*+ "?+ }x
@@ -237,7 +248,7 @@ module Aspp
     end
 
     def [](key)
-      @k2v[key] || key
+      @k2v[key]
     end
 
     def []=(key, val)
