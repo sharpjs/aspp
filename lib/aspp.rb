@@ -80,6 +80,8 @@ module Aspp
       @height = 0
       @aliases.clear
 
+      write_preamble
+
       # Process lines
       until @input.eos?
         if op = scan_labels
@@ -163,6 +165,20 @@ module Aspp
 
     def sync
         puts %{# #{@line} "#{@file}"}
+    end
+
+    def write_preamble
+      puts <<~EOS
+        # 1 "(asmpp-preamble)"
+        .macro .label name:req              // default label behavior
+          \\name\\():
+        .endm
+        #define _(x)                        // inline comment
+        #define SCOPE(name) .L$name         // reference to scope
+        #define L           .L$scope$name   // reference to local symbol
+
+        # #{@line} "#{@file}"
+      EOS
     end
 
     def start_scope(id)
