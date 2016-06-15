@@ -85,10 +85,10 @@ module Aspp
       # Process lines
       until @input.eos?
         if op = scan_labels
-          print op
+          print "\t", op
           scan_operands op
         else
-          print scan(/.*\n?+/)
+          print scan(REST_OF_LINE)
         end
 
         @line  += @height
@@ -183,13 +183,15 @@ module Aspp
 
     def start_scope(id)
       puts <<~EOS
-        ; ----- SCOPE: #{id} -----
+        ; SCOPE: #{id}
         #ifdef scope
         #undef scope
         #endif
         #define scope #{id}
+
         # #{@line} "#{@file}"
         .label scope
+
       EOS
     end
 
@@ -204,6 +206,8 @@ module Aspp
     WS  = %r{ (?: [ \t] | \\\n )*+ }x
     ID  = %r{ (?!\d) [\w.$]++ }x
     STR = %r{ " (?: [^\\"] | \\.?+ )*+ "?+ }x
+
+    REST_OF_LINE = %r{ .*+ \n?+ }x
 
     LABEL_OR_OP = %r{ #{WS} (?<id>#{ID}) (?<punc>::?+)?+ }x
 
