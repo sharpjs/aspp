@@ -73,9 +73,9 @@ module Aspp
       @aliases = Aliases.new
     end
 
-    def process(input, file = "(stdin)", line = 1)
+    def process(input, name = "(stdin)", line = 1)
       @input  = StringScanner.new(input)
-      @file   = file
+      @name   = name
       @line   = line
       @height = 0
       @aliases.clear
@@ -166,21 +166,11 @@ module Aspp
     end
 
     def sync
-        puts %{# #{@line} "#{@file}"}
+        puts %{# #{@line} "#{@name}"}
     end
 
     def write_preamble
-      puts <<~EOS
-        # 1 "(asmpp-preamble)"
-        .macro .label name:req              // default label behavior
-          \\name\\():
-        .endm
-        #define _(x)                        // inline comment
-        #define SCOPE(name) .L$name         // reference to scope
-        #define L           .L$scope$name   // reference to local symbol
-
-        # #{@line} "#{@file}"
-      EOS
+      puts Aspp::preamble(@name)
     end
 
     def start_scope(id)
@@ -191,7 +181,7 @@ module Aspp
         #endif
         #define scope #{id}
 
-        # #{@line} "#{@file}"
+        # #{@line} "#{@name}"
         .label scope
 
       EOS
@@ -240,6 +230,21 @@ module Aspp
         .
     }x
   end # Processor
+
+  def self.preamble(filename)
+    <<~EOS
+      # 1 "(asmpp-preamble)"
+      .macro .label name:req              // default label behavior
+        \\name\\():
+      .endm
+      #define _(x)                        // inline comment
+      #define SCOPE(name) .L$name         // reference to scope
+      #define L           .L$scope$name   // reference to local symbol
+
+      # 1 "#{@filename}"
+
+    EOS
+  end
 
   class Aliases
     def initialize
