@@ -75,19 +75,21 @@ module Aspp
 
     def process(input, name = "(stdin)", line = 1)
       @input  = StringScanner.new(input)
-      @name   = name
-      @line   = line
-      @height = 0
-      @aliases.clear
+      @name   = name  # input file name 
+      @line   = line  # input line number
+      @height = 0     # input line height (i.e. count of embedded newlines)
+      @aliases.clear  # identifier alias mappings
 
       write_preamble
 
       # Process lines
       until @input.eos?
         if op = scan_labels
+          # Line has an op mnemonic
           print "\t", op
           scan_operands op
         else
+          # No mnemonic (label only, whitespace, cpp, etc.)
           print scan(REST_OF_LINE)
         end
 
