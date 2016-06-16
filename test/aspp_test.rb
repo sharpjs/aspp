@@ -63,6 +63,79 @@ module Aspp
         foo
       '
     end
+
+    def test_local_label
+      assert_pp '
+        .foo:
+      ', '
+        L(foo):
+      '
+    end
+
+    def test_local_operand
+      assert_pp '
+        .foo .bar
+      ', '
+        .foo L(bar)
+      '
+    end
+
+    def test_alias
+      assert_pp '
+        foo bar@qux
+        foo bar
+      ', '
+        foo _(bar)qux
+        foo _(bar)qux
+      '
+    end
+
+    def test_alias_redef_lhs
+      assert_pp '
+        foo bar@qux
+        foo bar@zot
+        foo bar
+      ', '
+        foo _(bar)qux
+        foo _(bar)zot
+        foo _(bar)zot
+      '
+    end
+
+    def test_alias_redef_rhs
+      assert_pp '
+        foo bar@qux
+        foo vib@qux
+        foo bar
+        foo vib
+      ', '
+        foo _(bar)qux
+        foo _(vib)qux
+        foo bar
+        foo _(vib)qux
+      '
+    end
+
+    def test_alias_undef
+      assert_pp '
+        foo bar@qux
+        foo bar
+        snork:
+        foo bar
+      ', '
+        foo _(bar)qux
+        foo _(bar)qux
+        #ifdef scope
+        #undef scope
+        #endif
+        #define scope snork
+        # 3 "test"
+        .label scope
+        # 3 "test"
+
+        foo bar
+      '
+    end
   end
 end
 
