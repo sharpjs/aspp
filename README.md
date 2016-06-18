@@ -2,7 +2,7 @@
 
 I've been trying various ideas for an assembly language preprocessor.
 
-The current iteration targets **[the GNU assembler](https://www.gnu.org/software/binutils/)** and provides a few extra capabilities:
+The current iteration targets **[the GNU assembler](https://www.gnu.org/software/binutils/)** with C preprocessor and provides a few extra capabilities:
 
 * Global labels.  These have an extra `:` suffix.
 
