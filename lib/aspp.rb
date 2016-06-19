@@ -20,47 +20,56 @@
 #
 # FEATURES
 #
-# - Global labels
-#
-#     foo::             foo: .global foo
-#
-# - Local labels
-#
-#     .foo:             L(foo)
-#
 # - Label macro invocation
 #
-#     foo:              .label foo
+#     foo:              .label foo;
 #
-# - Local symbol scopes
+# - Global labels
 #
-#     foo: {            .label foo
-#       ...             #define scope foo
+#     foo::             .label foo; .global foo;
+#
+# - Local scopes (nestable)
+#
+#     foo: // optional
+#     {                 #define SCOPE foo
+#       ...             .scope foo
 #       ...
-#     }                 #undef scope
+#       ...             .endscope foo
+#     }                 #undef SCOPE
 #
-# - Local aliases
+# - Local symbols
 #
-#     op  foo = a0      _(foo)a0
-#     op  foo           _(foo)a0
-#     op  bar = a0      _(bar)a0    // undefines foo
+#     .foo              L(foo)
 #
-# - Square brackets for indirect addressing
+# - Local identifier aliases
+#
+#     op foo = a0       _(foo)a0  // foo aliased to a0
+#     op foo            _(foo)a0
+#     op bar = a0       _(bar)a0  // bar aliased to a0, foo unaliased
+#
+# - Brackets replaced with parentheses
 #
 #     [8, fp]           (8, fp)
 #
-# - Immediate-mode prefix removal for macros
+# - Immediate-mode prefix removal (pseudo-ops only)
 #
-#     cmp$.l #4, d0     cmp$.l _(#)4, d0
+#     foo$.l #42, d0     foo$.l _(#)42, d0
 #
 # - Predefined macros
 #
-#     .macro .label name:req          // default .macro label
+#     #define _(x)                          // inline comment
+#     #define L(name)        .L$SCOPE$name  // ref to symbol in current scope
+#     #define S(scope, name) .L$scope$name  // ref to symbol in given scope
+#
+#     .macro .label name:req                // default label behavior
 #       \name\():
 #     .endm
 #
-#     #define _(x)                    // inline comment
-#     #define L(name) .L$scope$name   // reference to local symbol
+#     .macro .scope name:req, depth:req     // default begin-scope behavior
+#     .endm
+#
+#     .macro .endscope name:req, depth:req  // default end-scope behavior
+#     .endm
 #
 
 module Aspp

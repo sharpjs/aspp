@@ -2,61 +2,96 @@
 
 I've been trying various ideas for an assembly language preprocessor.
 
-The current iteration targets **[the GNU assembler](https://www.gnu.org/software/binutils/)** with C preprocessor and provides a few extra capabilities:
+The current iteration, **aspp**, targets a
+[C preprocessor](https://gcc.gnu.org/onlinedocs/cpp/) +
+[GNU assembler](https://www.gnu.org/software/binutils/)
+toolchain and provides a few extra capabilities:
 
-* Global labels.  These have an extra `:` suffix.
+#### Per-label macro invocation
 
-  ```
-  foo::  =>  .global foo
-  ```
+Redefine the `.label` macro to enable custom behavior (alignment, for example) for each non-local label.
 
-* Local symbols.  These begin with `.` and are valid within the scopes described below.
+```
+foo:   =>   .label foo;
+```
 
-  ```
-  .foo  =>  L(foo)
-  ```
+#### Global labels
 
-* Per-label macro invocation.  Redefine the `.label` macro to enable custom behavior (alignment, for example) for each non-local label.
+These have an extra `:` suffix.
 
-  ```
-  foo:  =>  .label foo
-  ```
+```
+foo::   =>   .label foo; .global foo;
+```
 
-* Local symbol scopes.  These exist between  `{` / `}` pairs and can be nested.
+#### Local scopes
 
-  ```
-   foo: {   =>   .label foo
-    ...          #define scope foo
-    ...
-  }         =>   #undef scope
-  ```
+These exist between `{` `}` pairs and can be nested.
+A scope has a name: either that of its preceding label or a unique generated name.
+Redefine the `.scope` and `.endscope` macros to enable custom behavior (frame setup, for example) for each scope.
 
-* Local identifier aliases.  `a = b` means that future occurrences of `a` will be replaced with `b`, until either identifier is redefined or a non-local label is encountered.  This enables registers to be renamed according to their usage.
+```
+foo:
+{       =>   #define SCOPE foo
+  ...   =>   .scope foo
+  ...
+  ...   =>   .endscope foo
+}       =>   #undef SCOPE
+```
 
-  ```
-  op  foo = a0   =>   _(foo)a0  // foo aliased to a0
-  op  foo        =>   _(foo)a0
-  op  bar = a0   =>   _(bar)a0  // bar aliased to a0, foo undefined
-  ```
+#### Local symbols
 
-* Brackets replaced with parentheses.  I prefer brackets for indirect addressing, as they appear distinct from CPP macro invocations.
+These begin with `.` and are valid within the containing scope.
 
-  ```
-  [8, fp]   =>   (8, fp)
-  ```
+```
+.foo   =>   L(foo)
+```
 
-* Immediate-mode prefix removal for macros.  If the macro name begins with `.` or contains `$`, any `#` are removed from operands.
+#### Local identifier aliases
 
-  ```
-  cmp$.l #42, d0     cmp$.l _(#)42, d0
-  ```
+In operands, `a = b` means that subsequent `a` will be replaced with `b`,
+until either `a` or `b` is re-aliased or the containing scope ends.
+This enables registers to be renamed according to their usage.
 
-* Predefined macros.  These are required to support the above features.
+```
+op foo = a0   =>   op _(foo)a0  // foo aliased to a0
+op foo        =>   op _(foo)a0
+op bar = a0   =>   op _(bar)a0  // bar aliased to a0, foo unaliased
+```
 
-  ```
-  .macro .label name:req          // default .macro label
+#### Brackets replaced with parentheses
+
+In operands, `[` `]` brackets are replaced with parentheses.
+This helps to distinguish indirect addressing from CPP macro invocations.
+
+```
+[8, fp]   =>   (8, fp)
+```
+
+#### Immediate-mode prefix removal
+
+In operands, `#` are removed if the directive name begins with `.` or contains `$`.
+This enables macros to take immediate-mode arguments but treat them as numbers.
+
+```
+foo$.l #42, d0   =>   foo$.l _(#)42, d0
+```
+
+#### Predefined macros
+
+These macros support the above features.
+
+```
+#define _(x)                          // inline comment
+#define L(name)        .L$SCOPE$name  // local symbol in current scope
+#define S(scope, name) .L$scope$name  // local symbol in given scope
+
+.macro .label name:req                // default label behavior
     \name\():
-  .endm
-  #define _(x)                    // inline comment
-  #define L(name) .L$scope$name   // reference to local symbol
-  ```
+.endm
+
+.macro .scope name:req, depth:req     // default begin-scope behavior
+.endm
+
+.macro .endscope name:req, depth:req  // default end-scope behavior
+.endm
+```
