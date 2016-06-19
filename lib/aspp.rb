@@ -240,14 +240,21 @@ module Aspp
 
   def self.preamble(name)
     <<~EOS
-      # 1 "(ampp-preamble)"
-      .macro .label name:req                  // default label macro:
-        \\name\\():                             //   just emit a label
+      # 1 "(aspp)"
+ 
+      #define _(x)                          // inline comment
+      #define L(name)        .L$SCOPE$name  // ref to symbol in current scope
+      #define S(scope, name) .L$scope$name  // ref to symbol in given scope
+ 
+      .macro .label name:req                // default label behavior
+        \\name\\():
       .endm
-
-      #define _(x)                            // inline comment
-      #define L(name)        .L$scope$name    // local symbol in current scope
-      #define S(scope, name) .L$scope$name    // local symbol in given   scope
+ 
+      .macro .scope name:req, depth:req     // default begin-scope behavior
+      .endm
+ 
+      .macro .endscope name:req, depth:req  // default end-scope behavior
+      .endm
 
     EOS
   end
