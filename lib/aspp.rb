@@ -160,26 +160,40 @@ module Aspp
     end
 
     def on_block(char)
+      puts unless @bol
+      puts
+
       case char
       when '{'
         old      = @scopes.last
         new      = @label || gensym
+        new      = old ? "#{old}$#{new}" : new
+        depth    = @scopes.length
+
         @aliases = Aliases.new(@aliases)
-        @scopes.push old ? "#{old}$#{new}" : new
+        @scopes.push new
+
+        set_scope old, new
+        puts ".scope #{new}, #{depth}"
       when '}'
         old      = @scopes.pop
         new      = @scopes.last
+        depth    = @scopes.length
+
         @aliases = @aliases.parent
+
+        puts ".endscope #{old}, #{depth}"
+        set_scope old, new
       end
 
-      puts unless @bol
-      puts
-      puts "#undef scope"         if old
-      puts "#define scope #{new}" if new
       sync
-
       @label = nil
       @bol   = true
+    end
+
+    def set_scope(old, new)
+      puts "#undef SCOPE"         if old
+      puts "#define SCOPE #{new}" if new
     end
 
     def on_other(line)
