@@ -126,6 +126,9 @@ module Aspp
         (?# identifier or alias #)
         (#{ID}) (?: #{WS}?+ = #{WS}?+ (#{ID}) )?+
       |
+        (?# verbatim identifier #)
+        @ (#{ID})
+      |
         (?# chars with special handling #)
         [\[\]\#]
       | 
@@ -158,6 +161,7 @@ module Aspp
         when "]"  then ")"
         when "#"  then pseudo ? "_(#)" : "#"
         when '"'  then s
+        when '@'  then $3
         else           on_identifier $1, $2
         end
       end

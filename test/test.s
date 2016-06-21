@@ -10,8 +10,8 @@ strlen:: {
         .arg.b      str
         .enter
 
-        movea.l     arg(str), beg = a0      // load args
-        movea.l     beg,      end = a1
+        movea.l     arg(@str), beg = a0      // load args
+        movea.l     beg,       end = a1
 
   .each_c: {
         tst.b       [end]+                  // find zero byte

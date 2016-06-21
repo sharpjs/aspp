@@ -52,10 +52,13 @@ In operands, `a = b` means that subsequent `a` will be replaced with `b`,
 until either `a` or `b` is re-aliased or the containing scope ends.
 This enables registers to be renamed according to their usage.
 
+A `@` prefix escapes alias replacement.
+
 ```
 op foo = a0   =>   op _(foo)a0  // foo aliased to a0
 op foo        =>   op _(foo)a0
 op bar = a0   =>   op _(bar)a0  // bar aliased to a0, foo unaliased
+op @bar       =>   op bar       // escaped
 ```
 
 #### Brackets replaced with parentheses
