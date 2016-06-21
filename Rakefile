@@ -25,3 +25,7 @@ task :test do
     '--', *Dir['./test/**/*_test.rb']
 end
 
+task :try do
+  system "lib/aspp.rb", "test/test.s"
+end
+
