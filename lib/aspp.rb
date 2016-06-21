@@ -137,6 +137,11 @@ module Aspp
       )
     }x
 
+    RESERVED = %w{
+      .s .b .w .l
+    }
+    .reduce({}) { |h, i| h[i] = true; h }
+
     def on_label(ws, name, sigil)
       if local?(name)
         print ws, localize(name), ":"
@@ -215,6 +220,8 @@ module Aspp
     end
 
     def on_identifier(id, val)
+      return id if RESERVED[id]
+
       name = if val
                @aliases[id] = val
              else

@@ -24,6 +24,8 @@ strlen:: {
 
         .leave
         rts
+
+        zag.x       (foo).w, (bar).l
 }
 
 // vim: ft=asmcf
