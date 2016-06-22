@@ -122,18 +122,12 @@ module Aspp
     >x
 
     SPECIAL = %r{
-      (?:
-        (?# identifier or alias #)
-        (#{ID}) (?: #{WS}?+ = #{WS}?+ (#{ID}) )?+
-      |
-        (?# verbatim identifier #)
-        @ (#{ID})
-      |
-        (?# chars with special handling #)
-        [\[\]\#]
-      | 
-        (?# string #)
-        #{STR}
+      (?: (#{ID}) (?: #{WS}?+ = #{WS}?+ (#{ID}) )?+   (?# identifier or alias #)
+        | @ (#{ID})                                   (?# verbatim identifier #)
+        | \[                                          (?# indirect mode begin #)
+        | \]                                          (?# indirect mode end  #)
+        | \#                                          (?# immediate mode prefix #)
+        | #{STR}                                      (?# string #)
       )
     }x
 
