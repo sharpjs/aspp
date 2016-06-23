@@ -152,13 +152,11 @@ module Aspp
     end
 
     def on_statement(ws, name, args, rest)
-      pseudo = pseudo?(name)
-
       args.gsub!(SPECIAL) do |s|
         case s[0]
         when "["  then "("
         when "]"  then ")"
-        when "#"  then pseudo ? "_(#)" : "#"
+        when "#"  then pseudo?(name) ? "_(#)" : "#"
         when '"'  then s
         when '@'  then $3
         else           on_identifier $1, $2
