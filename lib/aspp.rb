@@ -83,7 +83,7 @@ module Aspp
       @scopes  = []           # scope name stack
       @gensym  = 0            # number of next anonymous scope
 
-      print Aspp::preamble(file)
+      print preamble
     end
 
     def process(input)
@@ -248,29 +248,31 @@ module Aspp
     def pseudo?(id)
       id.start_with?(".") || id.include?("$")
     end
+
+    public
+
+    def preamble
+      <<~EOS
+        # 1 "(aspp)"
+   
+        #define _(x)                          // inline comment
+        #define L(name)        .L$SCOPE$name  // ref to symbol in current scope
+        #define S(scope, name) .L$scope$name  // ref to symbol in given scope
+   
+        .macro .label name:req                // default label behavior
+          \\name\\():
+        .endm
+   
+        .macro .scope name:req, depth:req     // default begin-scope behavior
+        .endm
+   
+        .macro .endscope name:req, depth:req  // default end-scope behavior
+        .endm
+
+        # #{@line} "#{@file}"
+      EOS
+    end
   end # Processor
-
-  def self.preamble(name)
-    <<~EOS
-      # 1 "(aspp)"
- 
-      #define _(x)                          // inline comment
-      #define L(name)        .L$SCOPE$name  // ref to symbol in current scope
-      #define S(scope, name) .L$scope$name  // ref to symbol in given scope
- 
-      .macro .label name:req                // default label behavior
-        \\name\\():
-      .endm
- 
-      .macro .scope name:req, depth:req     // default begin-scope behavior
-      .endm
- 
-      .macro .endscope name:req, depth:req  // default end-scope behavior
-      .endm
-
-      # #{@line} "#{@file}"
-    EOS
-  end
 
   # A scope for aliases:
   # - An alias/key maps to a value.

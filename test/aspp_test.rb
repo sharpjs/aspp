@@ -27,9 +27,11 @@ module Aspp
   class AsppTest < Minitest::Test
     def assert_pp(input, output)
       input  = unindent input
-      output = Aspp::preamble('test') + unindent(output)
+      output = unindent output
       actual = capture do
-        Aspp::Processor.new('test').process(input)
+        aspp   = Aspp::Processor.new('test')
+        output = aspp.preamble + output
+        aspp.process input
       end
       assert_equal output, actual
     end
