@@ -140,6 +140,7 @@ module Aspp
       if local?(name)
         print ws, localize(name), ":"
       else
+        @aliases.clear
         print ws, ".label ", name, ";"
       end
 
@@ -284,6 +285,11 @@ module Aspp
       @parent = parent
       @k2v    = {}
       @v2k    = {}
+    end
+
+    def clear
+      @k2v.clear
+      @v2k.clear
     end
 
     def [](key)
