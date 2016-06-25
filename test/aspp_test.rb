@@ -29,7 +29,7 @@ module Aspp
       input  = unindent input
       output = Aspp::preamble('test') + unindent(output)
       actual = capture do
-        Aspp::Processor.new.process(input, 'test')
+        Aspp::Processor.new('test').process(input)
       end
       assert_equal output, actual
     end
@@ -82,7 +82,7 @@ module Aspp
 
     def test_alias
       assert_pp '
-        foo bar@qux
+        foo bar = qux
         foo bar
       ', '
         foo _(bar)qux
@@ -92,8 +92,8 @@ module Aspp
 
     def test_alias_redef_lhs
       assert_pp '
-        foo bar@qux
-        foo bar@zot
+        foo bar = qux
+        foo bar = zot
         foo bar
       ', '
         foo _(bar)qux
@@ -104,8 +104,8 @@ module Aspp
 
     def test_alias_redef_rhs
       assert_pp '
-        foo bar@qux
-        foo vib@qux
+        foo bar = qux
+        foo vib = qux
         foo bar
         foo vib
       ', '
@@ -118,21 +118,14 @@ module Aspp
 
     def test_alias_undef
       assert_pp '
-        foo bar@qux
+        foo bar = qux
         foo bar
         snork:
         foo bar
       ', '
         foo _(bar)qux
         foo _(bar)qux
-        #ifdef scope
-        #undef scope
-        #endif
-        #define scope snork
-        # 3 "test"
-        .label scope
-        # 3 "test"
-
+        .label snork;
         foo bar
       '
     end

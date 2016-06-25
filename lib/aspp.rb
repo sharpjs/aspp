@@ -84,7 +84,6 @@ module Aspp
       @gensym  = 0            # number of next anonymous scope
 
       print Aspp::preamble(file)
-      sync
     end
 
     def process(input)
@@ -269,6 +268,7 @@ module Aspp
       .macro .endscope name:req, depth:req  // default end-scope behavior
       .endm
 
+      # #{@line} "#{@file}"
     EOS
   end
 
