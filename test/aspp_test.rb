@@ -131,6 +131,20 @@ module Aspp
         foo bar
       '
     end
+
+    def test_alias_indirect
+      assert_pp '
+        foo bar = qux
+        foo jig = bar
+        foo bar
+        foo jig
+      ', '
+        foo _(bar)qux
+        foo _(jig)qux
+        foo bar
+        foo _(jig)qux
+      '
+    end
   end
 end
 

@@ -211,18 +211,19 @@ module Aspp
       @bol = true
     end
 
-    def on_identifier(id, val)
+    def on_identifier(id, real)
       return id if RESERVED[id]
 
-      name = if val
-               @aliases[id] = val
+      real = if real
+               @aliases[id] = @aliases[real] || real
              else
-               val = @aliases[id] or id
+               @aliases[id] || id
              end
 
-      name = localize(name) if local?(name)
+      same = real == id
+      real = localize(real) if local?(real)
 
-      val ? "_(#{id})#{name}" : name
+      if same then real else "_(#{id})#{real}" end
     end
 
     def sync
