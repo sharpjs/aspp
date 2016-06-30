@@ -103,7 +103,8 @@ module Aspp
     WS   = %r{ (?: [ \t] | \\\n )++ }x
     ID   = %r{ (?!\d) [\w.$]++ }x
     STR  = %r{ " (?: [^\\"] | \\.?+ )*+ "?+ }x
-    ARGS = %r{ (?: #{STR} | /(?!/) | \\.?+ | [^/\n;] )*+ }x
+    RAW  = %r{ ` (?: [^`]   | ``    )*+ `?+ }x
+    ARGS = %r{ (?: #{STR} | #{RAW} | /(?!/) | \\.?+ | [^/\n;] )*+ }x
 
     STATEMENT = %r< \G
       (#{WS})?+
@@ -121,12 +122,13 @@ module Aspp
     >x
 
     SPECIAL = %r{
-      (?: (#{ID}) (?: #{WS}?+ = #{WS}?+ (#{ID}) )?+   (?# identifier or alias #)
-        | @ (#{ID})                                   (?# verbatim identifier #)
-        | \[                                          (?# indirect mode begin #)
-        | \]                                          (?# indirect mode end  #)
-        | \#                                          (?# immediate mode prefix #)
-        | #{STR}                                      (?# string #)
+      (?: (#{ID}) (?: #{WS}?+ = #{WS}?+ (#{ID}|#{RAW}) )?+
+                      (?# identifier or alias #)
+        | @ (#{ID})   (?# verbatim identifier #)
+        | \[          (?# indirect mode begin #)
+        | \]          (?# indirect mode end  #)
+        | \#          (?# immediate mode prefix #)
+        | #{STR}      (?# string #)
       )
     }x
 
@@ -154,12 +156,12 @@ module Aspp
     def on_statement(ws, name, args, rest)
       args.gsub!(SPECIAL) do |s|
         case s[0]
-        when "["  then "("
-        when "]"  then ")"
-        when "#"  then pseudo?(name) ? "_(#)" : "#"
-        when '"'  then s
-        when '@'  then $3
-        else           on_identifier $1, $2
+        when "[" then "("
+        when "]" then ")"
+        when "#" then pseudo?(name) ? "_(#)" : "#"
+        when '"' then s
+        when '@' then $3
+        else on_identifier $1, $2
         end
       end
 
@@ -215,6 +217,7 @@ module Aspp
       return id if RESERVED[id]
 
       real = if real
+               real = real[1..-2].gsub('``', '`') if real.start_with?('`')
                @aliases[id] = @aliases[real] || real
              else
                @aliases[id] || id

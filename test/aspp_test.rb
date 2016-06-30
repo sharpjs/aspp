@@ -145,6 +145,16 @@ module Aspp
         foo _(jig)qux
       '
     end
+
+    def test_alias_raw
+      assert_pp '
+        foo bar = `not ``just`` an ident`
+        foo bar
+      ', '
+        foo _(bar)not `just` an ident
+        foo _(bar)not `just` an ident
+      '
+    end
   end
 end
 
