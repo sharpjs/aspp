@@ -1,0 +1,316 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+#
+# SRB - An Assembly DSL in Ruby
+# Copyright (C) 2016 Jeffrey Sharp
+#
+# SRB is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published
+# by the Free Software Foundation, either version 3 of the License,
+# or (at your option) any later version.
+#
+# SRB is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See
+# the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with SRB.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+module SRB
+  # Refinements
+
+  refine Module do
+    # Defines read-only accessor methods, corresponding instance variables,
+    # and an initializer method that sets the instance variables.
+    #
+    def struct(*names)
+      attr_reader *names
+
+      class_eval <<-EOS
+        def initialize(#{names.join(', ')})
+          #{names.map { |n| "@#{n} = #{n}" }.join('; ')}
+          freeze
+        end
+      EOS
+      nil
+    end
+
+    # Defines unary operators that produce assembler expressions.
+    #
+    def define_asm_unary_ops
+      # Define operators
+      define_method(:-@) { Unary.new(:-@, self) }
+      define_method(:~ ) { Unary.new(:~@, self) }
+      nil
+    end
+
+    # Defines binary operators that produce assembler expressions.
+    #
+    def define_asm_binary_ops
+      # Returns true if +rhs+ can form a binary expression with the receiver.
+      define_method(:binary_op_with?) do |rhs|
+        case rhs
+        when Numeric then !self.is_a?(Numeric)
+        when Symbol  then true
+        when Expr    then true
+        # Registers, etc?
+        end
+      end
+
+      # Define operators
+      %i[ * / % + - << >> & ^ | == != < <= > >= && || ]
+      .each do |op|
+        define_method(op) do |rhs|
+          if binary_op_with?(rhs)
+            Binary.new(op, self, rhs)
+          else
+            super(rhs)
+          end
+        end
+      end
+
+      # Aliases to invoke && || operators, which Ruby cannot override.
+      alias_method :and, :'&&'
+      alias_method :or,  :'||'
+      nil
+    end
+  end
+
+  refine Object do
+    # Converts the object to an assembly term.
+    def resolve(context)
+      raise "invalid assembly term: #{inspect}"
+    end
+  end
+
+  refine Symbol do
+    # Converts the object to an assembly term.
+    def resolve(context)
+      Ident.new(self, context)
+    end
+
+    # Writes assembly output.
+    def write(syntax)
+      syntax.write_sym(self)
+    end
+
+    define_asm_unary_ops
+    define_asm_binary_ops
+  end
+
+  refine Integer do
+    # Converts the object to an assembly term.
+    def resolve(context)
+      Constant.new(self)
+    end
+
+    # Writes assembly output.
+    def write(syntax)
+      syntax.write_int(self)
+    end
+
+    define_asm_binary_ops
+  end
+
+  refine String do
+    # Writes assembly output.
+    def write(syntax)
+      syntax.write_str(self)
+    end
+  end
+
+  refine Array do
+    # Converts the object to an assembly term.
+    def resolve(context)
+      context.ptr(*self)
+    end
+  end
+
+  using self # Activate refinements
+
+  # Terms
+
+  module Resolved
+    def resolve(context)
+      # Object resolves to itself
+      self
+    end
+  end
+
+  class Expr # abstract
+    define_asm_unary_ops
+    define_asm_binary_ops
+  end
+
+  class Constant < Expr
+    include Resolved
+    struct :value
+
+    # Writes assembly output.
+    def write(syntax)
+      value.write(syntax)
+    end
+  end
+
+  class Ident < Constant
+    attr_reader :context
+
+    # TODO: Locals, globals
+
+    def initialize(value, context)
+      @context = context
+      super(value)
+    end
+  end
+
+  class Unary < Expr
+    struct :op, :expr
+
+    # Resolves the object as an assembly term in the given context.
+    def resolve(context)
+      expr = @expr.resolve(context)
+      same = expr == @expr
+      same ? self : self.class.new(op, expr)
+      self
+    end
+
+    # Writes assembly output.
+    def write(syntax)
+      syntax.write_unary(self)
+    end
+  end
+
+  class Binary < Expr
+    struct :op, :lhs, :rhs
+
+    # Resolves the object as an assembly term in the given context.
+    def resolve(context)
+      lhs  = @lhs.resolve(context)
+      rhs  = @rhs.resolve(context)
+      same = lhs == @lhs && rhs == @rhs
+      same ? self : self.class.new(op, lhs, rhs)
+      self
+    end
+
+    # Writes assembly output.
+    def write(syntax)
+      syntax.write_binary(self)
+    end
+  end
+
+  class CleanObject < BasicObject
+    # public  methods: __send__, __eval__, __exec__, __id__
+    # private methods: initialize, method_missing
+
+    define_method :__send__, ::Object.instance_method(:public_send)
+    define_method :__eval__,          instance_method(:instance_eval)
+    define_method :__exec__,          instance_method(:instance_exec)
+
+    undef_method  :!, :!=, :==, :equal?, :instance_eval, :instance_exec,
+                  :singleton_method_added,
+                  :singleton_method_removed,
+                  :singleton_method_undefined
+  end
+
+  class ContextProxy < CleanObject
+    undef_method :__id__
+    private
+    
+    def method_missing(name, *args, &block)
+      ASM_CONTEXT.__send__(name, *args, &block)
+    end
+
+    def respond_to_missing?(name, all)
+      ASM_CONTEXT.respond_to?(name, false)
+    end
+
+    def self.const_missing(name)
+      ::Object.const_get(name)
+    end
+  end
+
+  class Context < CleanObject
+    def initialize(syntax, parent=nil, name=nil)
+      @syntax = syntax
+      @parent = parent
+
+      @scope  = {}
+      @name   = parent ? parent.local(name) : name
+      @localn = 0
+    end
+
+    def eval(ruby, name="(stdin)", line=1)
+      ContextProxy
+        .dup.tap { |c| c.const_set(:ASM_CONTEXT, self) }
+        .new.__eval__(ruby, name, line)
+    end
+
+    def __name__
+      @name
+    end
+
+    def local(sym = nil)
+      @syntax.combine_sym(@name, sym || :"q#{@localn += 1}")
+    end
+
+    def at(name)
+      id = name.resolve(self)
+      @syntax.write_label(id)
+    end
+
+    def ptr(*parts)
+      ::Kernel.raise "arch does not support indirect mode"
+    end
+
+    protected
+
+    def op(kind, name, *args)
+      args.map! { |a| a.resolve(self) }
+      @syntax.write_op(kind, name, *args)
+    end
+  end
+
+  class TopLevel < Context
+    # func, struct, section, etc.
+  end
+
+  class Line
+  end
+
+  class Blank < Line
+  end
+
+  class Label < Line
+    struct :name, :visibility
+  end
+
+  class Code < Line
+    struct :name, :args, :comment
+  end
+end
+
+require_relative 'arch-cf'
+require_relative 'syntax-mot'
+
+if __FILE__ == $0
+  # Running as a script
+
+  # Don't print "broken pipe" error messages
+  trap "PIPE", "SYSTEM_DEFAULT"
+
+  syntax = SRB::MotorolaSyntax.new($stdout)
+
+  # Process each specified file
+  loop do
+    SRB::TopLevel
+      .new(syntax)
+      .eval(ARGF.file.read, ARGF.filename)
+    ARGF.skip
+    break if ARGV.empty?
+  end
+end
+
+#vim: set ft=ruby
+
