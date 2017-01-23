@@ -232,8 +232,8 @@ module SRB
   end
 
   class Context < CleanObject
-    def initialize(syntax, parent=nil, name=nil)
-      @syntax = syntax
+    def initialize(buffer, parent=nil, name=nil)
+      @buffer = buffer
       @parent = parent
 
       @scope  = {}
@@ -252,12 +252,11 @@ module SRB
     end
 
     def local(sym = nil)
-      @syntax.combine_sym(@name, sym || :"q#{@localn += 1}")
+      @buffer.syntax.combine_sym(@name, sym || :"q#{@localn += 1}")
     end
 
     def at(name)
-      id = name.resolve(self)
-      @syntax.write_label(id)
+      @buffer << Label.new(name.resolve(self), :public)
     end
 
     def ptr(*parts)
@@ -268,7 +267,7 @@ module SRB
 
     def op(kind, name, *args)
       args.map! { |a| a.resolve(self) }
-      @syntax.write_op(kind, name, *args)
+      @buffer << Code.new(kind, name, args)
     end
   end
 
@@ -276,18 +275,51 @@ module SRB
     # func, struct, section, etc.
   end
 
+  # Output/Lines
+
+  class Output
+    attr_reader :syntax
+
+    def initialize(syntax)
+      @items  = []
+      @syntax = syntax
+    end
+
+    def <<(item)
+      @items << item
+      self
+    end
+
+    def write
+      @items.each { |item| item.write(@syntax) }
+      nil
+    end
+  end
+
   class Line
+    # marker
   end
 
   class Blank < Line
+    def write
+      syntax.write_empty
+    end
   end
 
   class Label < Line
     struct :name, :visibility
+
+    def write(syntax)
+      syntax.write_label(name)
+    end
   end
 
   class Code < Line
-    struct :name, :args, :comment
+    struct :kind, :name, :args
+
+    def write(syntax)
+      syntax.write_op(kind, name, *args)
+    end
   end
 end
 
@@ -304,9 +336,11 @@ if __FILE__ == $0
 
   # Process each specified file
   loop do
+    buffer = SRB::Output.new(syntax)
     SRB::TopLevel
-      .new(syntax)
+      .new(buffer)
       .eval(ARGF.file.read, ARGF.filename)
+    buffer.write
     ARGF.skip
     break if ARGV.empty?
   end

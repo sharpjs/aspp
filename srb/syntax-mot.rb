@@ -76,6 +76,11 @@ module SRB
 
     public
 
+    def write_empty
+      newline
+      newline!
+    end
+
     def write_unary(expr)
       write_grouped expr do |e|
         write e.op.to_s.chomp('@')
