@@ -234,8 +234,8 @@ module SRB
   end
 
   class Context < CleanObject
-    def initialize(buffer, parent=nil, name=nil)
-      @buffer = buffer
+    def initialize(out, parent=nil, name=nil)
+      @out    = out
       @parent = parent
 
       @scope  = {}
@@ -254,11 +254,11 @@ module SRB
     end
 
     def local(sym = nil)
-      @buffer.syntax.combine_sym(@name, sym || :"q#{@localn += 1}")
+      @out.syntax.combine_sym(@name, sym || :"q#{@localn += 1}")
     end
 
     def at(name)
-      @buffer << Label.new(name.resolve(self), :public)
+      @out << Label.new(name.resolve(self), :public)
     end
 
     def ptr(*parts)
@@ -269,7 +269,7 @@ module SRB
 
     def op(kind, name, *args)
       args.map! { |a| a.resolve(self) }
-      @buffer << Code.new(kind, name, args)
+      @out << Code.new(kind, name, args)
     end
   end
 
