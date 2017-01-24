@@ -157,11 +157,13 @@ module SRB
   class Ident < Constant
     attr_reader :context
 
-    # TODO: Locals, globals
-
     def initialize(value, context)
       @context = context
       super(value)
+    end
+
+    def write(syntax)
+      @context.__lookup__(@value).write(syntax)
     end
   end
 
@@ -247,8 +249,8 @@ module SRB
         .new.__eval__(ruby, name, line)
     end
 
-    def __name__
-      @name
+    def __lookup__(sym)
+      sym
     end
 
     def local(sym = nil)
