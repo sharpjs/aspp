@@ -243,10 +243,18 @@ module SRB
       @localn = 0
     end
 
+    # Evaluates the given srb code in this context.
+    #
     def __eval__(ruby, name="(stdin)", line=1)
-      ContextProxy
+      proxy = ContextProxy
         .dup.tap { |c| c.const_set(:ASM_CONTEXT, self) }
-        .new.__eval__(ruby, name, line)
+        .new
+
+      if ::Proc === ruby
+        proxy.__eval__(&ruby)
+      else
+        proxy.__eval__(ruby, name, line)
+      end
     end
 
     def __lookup__(sym)
