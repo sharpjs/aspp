@@ -297,14 +297,12 @@ module SRB
   end
 
   class Line
-    # marker
-  end
-
-  class Blank < Line
     def write
       syntax.write_empty
     end
   end
+
+  BLANK = Line.new
 
   class Label < Line
     struct :name, :visibility
