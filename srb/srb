@@ -243,7 +243,7 @@ module SRB
       @localn = 0
     end
 
-    def eval(ruby, name="(stdin)", line=1)
+    def __eval__(ruby, name="(stdin)", line=1)
       ContextProxy
         .dup.tap { |c| c.const_set(:ASM_CONTEXT, self) }
         .new.__eval__(ruby, name, line)
@@ -339,7 +339,7 @@ if __FILE__ == $0
     buffer = SRB::Output.new(syntax)
     SRB::TopLevel
       .new(buffer)
-      .eval(ARGF.file.read, ARGF.filename)
+      .__eval__(ARGF.file.read, ARGF.filename)
     buffer.write
     ARGF.skip
     break if ARGV.empty?
