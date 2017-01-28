@@ -219,7 +219,7 @@ module SRB
   class ContextProxy < CleanObject
     undef_method :__id__
     private
-    
+
     def method_missing(name, *args, &block)
       ASM_CONTEXT.__send__(name, *args, &block)
     end
@@ -239,8 +239,8 @@ module SRB
       @parent = parent
 
       @scope  = {}
-      @name   = parent ? parent.local(name) : name
-      @localn = 0
+      @name   = parent&.__symbol__(@name, false)
+      @localn = -1
     end
 
     # Evaluates the given srb code in this context.
@@ -257,20 +257,38 @@ module SRB
       end
     end
 
+    # Gets or generates an assembler symbol in the context's scope.  Uses the
+    # name +sym+ if given; else, generates a name unique to the context.
+    #
+    # in root scope => static symbol by default
+    # in subscope   => local  symbol by default
+    #
+    def __symbol__(sym=nil, local=nil)
+      # Generate a name if one was not provided
+      sym ||= (@localn += 1).to_s
+
+      # Generate an assembler symbol in the output syntax
+      @out.syntax.symbolize(@name, sym, local)
+    end
+
+    # Looks up the assembler symbol for the given srb symbol.
+    #
     def __lookup__(sym)
-      sym
+      @scope[sym] or @parent ? @parent.__lookup__(sym) : sym
     end
 
-    def local(sym = nil)
-      @out.syntax.combine_sym(@name, sym || :"q#{@localn += 1}")
-    end
-
-    def at(name)
-      @out << Label.new(name.resolve(self), :public)
+    def at(sym)
+      @out << Label.new(__symbol__(sym).resolve(self), :public)
+      nil
     end
 
     def ptr(*parts)
       ::Kernel.raise "arch does not support indirect mode"
+    end
+
+    def SCOPE(&code)
+      name = __symbol__(nil, true)
+      Context.new(@out, self, name).__eval__(code)
     end
 
     protected

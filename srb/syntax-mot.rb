@@ -163,8 +163,17 @@ module SRB
       PRECEDENCE[op] || -1
     end
 
-    def combine_sym(a, b)
-      !a ? b : !b ? a : :"#{a}$#{b}"
+    # Formats an assembler symbol.
+    #   scope: name of scope containing symbol; nil => top-level
+    #   sym:   name of symbol
+    #   local: true  => make a local symbol
+    #          false => make a static symbol
+    #          nil   => make a local symbol if in a scope, otherwise static
+    #
+    def symbolize(scope, sym, local=nil)
+      raise 'symbolize: sym is required' if sym.nil?
+      local = !!scope if local.nil?
+      :"#{'.' if local}#{scope}#{'$' if scope}#{sym}"
     end
 
     def write_sym(sym)
