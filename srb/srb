@@ -234,13 +234,16 @@ module SRB
   end
 
   class Context < CleanObject
-    def initialize(out, parent=nil, name=nil)
+    def initialize(out, parent, name)
       @out    = out
       @parent = parent
-
       @scope  = {}
-      @name   = parent&.__symbol__(@name, false)
       @localn = -1
+      @name   = parent&.__symbol__(name, false)
+    end
+
+    def subscope(klass, name=nil)
+      klass.new(@out, self, name)
     end
 
     # Evaluates the given srb code in this context.
@@ -264,11 +267,7 @@ module SRB
     # in subscope   => local  symbol by default
     #
     def __symbol__(sym=nil, local=nil)
-      # Generate a name if one was not provided
-      sym ||= (@localn += 1).to_s
-
-      # Generate an assembler symbol in the output syntax
-      @out.syntax.symbolize(@name, sym, local)
+      @out.syntax.symbolize(@name, sym || @localn += 1, local)
     end
 
     # Looks up the assembler symbol for the given srb symbol.
@@ -287,8 +286,7 @@ module SRB
     end
 
     def SCOPE(&code)
-      name = __symbol__(nil, true)
-      Context.new(@out, self, name).__eval__(code)
+      subscope(Context).__eval__(code)
     end
 
     protected
@@ -300,6 +298,10 @@ module SRB
   end
 
   class TopLevel < Context
+    def initialize(out)
+      super(out, nil, nil)
+    end
+
     # func, struct, section, etc.
   end
 
