@@ -349,6 +349,31 @@ module SRB
       syntax.write_op(kind, name, *args)
     end
   end
+
+  # Types
+  class Type
+  end
+
+  class ScalarType < Type
+  end
+
+  class IntegerType < ScalarType
+    struct :store_width
+  end
+
+  class FloatType < ScalarType
+  end
+
+  class PointerType < ScalarType
+  end
+
+  class CompositeType < Type
+
+  class StructType < CompositeType
+  end
+
+  class UnionType < CompositeType
+  end
 end
 
 require_relative 'arch-cf'
