@@ -368,6 +368,7 @@ module SRB
   end
 
   class CompositeType < Type
+  end
 
   class StructType < CompositeType
   end
