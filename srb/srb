@@ -154,16 +154,12 @@ module SRB
     end
   end
 
-  class Ident < Constant
-    attr_reader :context
-
-    def initialize(value, context)
-      @context = context
-      super(value)
-    end
+  class Ident < Expr
+    include Resolved
+    struct :name, :context
 
     def write(syntax)
-      @context.__lookup__(@value).write(syntax)
+      @context.__lookup__(@name).write(syntax)
     end
   end
 
