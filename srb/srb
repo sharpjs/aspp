@@ -96,6 +96,11 @@ module SRB
       syntax.write_sym(self)
     end
 
+    # Defines an alias
+    def **(obj)
+      Alias.new(self, obj)
+    end
+
     define_asm_unary_ops
     define_asm_binary_ops
   end
@@ -195,6 +200,14 @@ module SRB
     # Writes assembly output.
     def write(syntax)
       syntax.write_binary(self)
+    end
+  end
+
+  class Alias
+    struct :name, :obj
+
+    def resolve(context)
+      context.__exec__(self) { |a| __alias__(a.name, a.obj) }
     end
   end
 
