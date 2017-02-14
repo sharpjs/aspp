@@ -240,6 +240,7 @@ module SRB
       @scope  = {}
       @localn = -1
       @name   = parent&.__symbol__(name, false)
+      @visibility = :local
     end
 
     def subscope(klass, name=nil)
@@ -312,9 +313,17 @@ module SRB
   class TopLevel < Context
     def initialize(out)
       super(out, nil, nil)
+      @visibility = :public
     end
 
     # func, struct, section, etc.
+    def public
+      @visibility = :public
+    end
+
+    def private
+      @visibility = :private
+    end
   end
 
   # Output/Lines
