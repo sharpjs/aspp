@@ -246,7 +246,8 @@ module SRB
       klass.new(@out, self, name)
     end
 
-    # Evaluates the given srb code in this context.
+    ##
+    # Evaluates the given srb code in the context.
     #
     def __eval__(ruby, name="(stdin)", line=1)
       proxy = ContextProxy
@@ -270,12 +271,17 @@ module SRB
       @out.syntax.symbolize(@name, sym || @localn += 1, local)
     end
 
+    ##
+    # Performs second-pass resolution of an identifier.
     # Looks up the assembler symbol for the given srb symbol.
     #
     def __lookup__(sym)
       @scope[sym] or @parent ? @parent.__lookup__(sym) : sym
     end
 
+    ##
+    # Emits a label.
+    #
     def at(sym)
       @out << Label.new(__symbol__(sym).resolve(self), :public)
       nil
@@ -297,6 +303,12 @@ module SRB
     end
   end
 
+  ##
+  # The top-level context.
+  #
+  # In a top-level context, symbols are file-scoped by default and can be made
+  # global via the +global+ directive.
+  #
   class TopLevel < Context
     def initialize(out)
       super(out, nil, nil)
