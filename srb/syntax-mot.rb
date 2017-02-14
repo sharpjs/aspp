@@ -165,15 +165,15 @@ module SRB
 
     # Formats an assembler symbol.
     #   scope: name of scope containing symbol; nil => top-level
-    #   sym:   name of symbol
+    #   name:  name of symbol
     #   local: true  => make a local symbol
-    #          false => make a static symbol
-    #          nil   => make a local symbol if in a scope, otherwise static
+    #          false => make a normal symbol
+    #          nil   => normal at top-level; local if in a subscope
     #
-    def symbolize(scope, sym, local=nil)
-      raise 'symbolize: sym is required' if sym.nil?
+    def symbolize(scope, name, local=nil)
+      raise 'symbolize: name is required' if name.nil?
       local = !!scope if local.nil?
-      :"#{'.' if local}#{scope}#{'$' if scope}#{sym}"
+      :"#{'.' if local}#{scope}#{'$' if scope}#{name}"
     end
 
     def write_sym(sym)
