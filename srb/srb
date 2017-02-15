@@ -88,7 +88,7 @@ module SRB
   refine Symbol do
     # Converts the object to an assembly term.
     def resolve(context)
-      Ident.new(self, context)
+      context.__exec__(self) { |sym| __ident__(sym) }
     end
 
     # Writes assembly output.
@@ -246,9 +246,14 @@ module SRB
     def initialize(out, parent, name)
       @out    = out
       @parent = parent
-      @scope  = {}
-      @localn = -1
-      @name   = parent&.__symbol__(name, false)
+      @name   = parent&.__symbol__(name, :hidden)
+
+      @alias_k2v = {} # key   -> value (an alias has only one meaning)
+      @alias_v2k = {} # value -> key   (a meaning has only one alias)
+
+      @symbols     = {}
+      @local_num   = -1
+
       @visibility = :local
     end
 
@@ -271,22 +276,58 @@ module SRB
       end
     end
 
-    # Gets or generates an assembler symbol in the context's scope.  Uses the
-    # name +sym+ if given; else, generates a name unique to the context.
+    ##
+    # Defines an alias.
     #
-    # in root scope => static symbol by default
-    # in subscope   => local  symbol by default
+    def __alias__(name, obj)
+      name = name.to_sym
+      obj  = obj.resolve(self)
+      @alias_v2k.delete(@alias_k2v[name]) # Forget old alias for this obj
+      @alias_k2v.delete(@alias_v2k[obj ]) # Forget old obj for this alias
+      @alias_k2v[name] = obj
+      @alias_v2k[obj ] = name
+      obj
+    end
+
+    ##
+    # First-pass identifier resolution.
     #
-    def __symbol__(sym=nil, local=nil)
-      @out.syntax.symbolize(@name, sym || @localn += 1, local)
+    # If +name+ is an alias, this method resolves it immediately.  Else, this
+    # method returns an Ident object that is resolved during the second pass.
+    #
+    def __ident__(name)
+      name = name.to_sym
+      @alias_k2v[name] || Ident.new(name, self)
+    end
+
+    ##
+    # Declares or generates an assembler symbol in the context's scope.
+    #
+    # Uses the name +name+ if given; else, generates a name unique to the
+    # context.
+    #
+    # = Visibility
+    # [+:public+]   everywhere; externally linkable
+    # [+:private+]  containing file
+    # [+:local+]    containing scope
+    # [+:hidden+]   nowhere; used to generate subscope names
+    #
+    def __symbol__(name=nil, vis=nil)
+      name = name&.to_sym
+      sym  = name || (@local_num += 1)
+      vis  = @visibility if vis.nil?
+      sym  = @out.syntax.symbolize(@name, sym, vis.equal?(:local))
+      @symbols[name] = sym unless name.nil? || vis.equal?(:hidden)
+      sym
     end
 
     ##
     # Performs second-pass resolution of an identifier.
+    #
     # Looks up the assembler symbol for the given srb symbol.
     #
     def __lookup__(sym)
-      @scope[sym] or @parent ? @parent.__lookup__(sym) : sym
+      @symbols[sym] or @parent ? @parent.__lookup__(sym) : sym
     end
 
     ##
