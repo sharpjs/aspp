@@ -164,7 +164,9 @@ module SRB
     struct :name, :context
 
     def write(syntax)
-      @context.__lookup__(@name).write(syntax)
+      @context
+        .__exec__(@name) { |n| __lookup__(n) }
+        .write(syntax)
     end
   end
 
@@ -277,6 +279,24 @@ module SRB
     end
 
     ##
+    # Emits a label.
+    #
+    def at(sym)
+      @out << Label.new(__symbol__(sym).resolve(self), :public)
+      nil
+    end
+
+    def ptr(*parts)
+      ::Kernel.raise "arch does not support indirect mode"
+    end
+
+    def SCOPE(&code)
+      subscope(Context).__eval__(code)
+    end
+
+    protected
+
+    ##
     # Defines an alias.
     #
     def __alias__(name, obj)
@@ -329,24 +349,6 @@ module SRB
     def __lookup__(sym)
       @symbols[sym] or @parent ? @parent.__lookup__(sym) : sym
     end
-
-    ##
-    # Emits a label.
-    #
-    def at(sym)
-      @out << Label.new(__symbol__(sym).resolve(self), :public)
-      nil
-    end
-
-    def ptr(*parts)
-      ::Kernel.raise "arch does not support indirect mode"
-    end
-
-    def SCOPE(&code)
-      subscope(Context).__eval__(code)
-    end
-
-    protected
 
     def op(kind, name, *args)
       args.map! { |a| a.resolve(self) }
