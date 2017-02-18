@@ -259,8 +259,20 @@ module SRB
       @visibility = :local
     end
 
-    def subscope(klass, name=nil)
-      klass.new(@out, self, name)
+    ##
+    # Emits a label.
+    #
+    def at(sym)
+      @out << Label.new(__symbol__(sym).resolve(self), :public)
+      nil
+    end
+
+    def ptr(*parts)
+      ::Kernel.raise "arch does not support indirect mode"
+    end
+
+    def SCOPE(&code)
+      subscope(Context).eval(code)
     end
 
     ##
@@ -278,23 +290,11 @@ module SRB
       end
     end
 
-    ##
-    # Emits a label.
-    #
-    def at(sym)
-      @out << Label.new(__symbol__(sym).resolve(self), :public)
-      nil
-    end
-
-    def ptr(*parts)
-      ::Kernel.raise "arch does not support indirect mode"
-    end
-
-    def SCOPE(&code)
-      subscope(Context).__eval__(code)
-    end
-
     protected
+
+    def subscope(klass, name=nil)
+      klass.new(@out, self, name)
+    end
 
     ##
     # Defines an alias.
