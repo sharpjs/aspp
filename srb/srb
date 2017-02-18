@@ -266,7 +266,7 @@ module SRB
     ##
     # Evaluates the given srb code in the context.
     #
-    def __eval__(ruby, name="(stdin)", line=1)
+    def eval(ruby, name="(stdin)", line=1)
       proxy = ContextProxy
         .dup.tap { |c| c.const_set(:ASM_CONTEXT, self) }
         .new
@@ -466,7 +466,7 @@ if __FILE__ == $0
     buffer = SRB::Output.new(syntax)
     SRB::TopLevel
       .new(buffer)
-      .__eval__(ARGF.file.read, ARGF.filename)
+      .eval(ARGF.file.read, ARGF.filename)
     buffer.write
     ARGF.skip
     break if ARGV.empty?
