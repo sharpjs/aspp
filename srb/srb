@@ -412,6 +412,7 @@ module SRB
 
     def write(syntax)
       syntax.write_label(name)
+      syntax.write_global(name) if :visibility == :public
     end
   end
 

@@ -196,6 +196,10 @@ module SRB
       newline!
     end
 
+    def write_global(sym)
+      write_op :pseudo, :global, sym
+    end
+
     def write_op(kind, op, *args)
       newline
       align MNEMONIC_COLUMN
@@ -212,7 +216,7 @@ module SRB
       else
         write OPERAND_SEPARATOR
       end
-      if kind == :i && Expr === arg
+      if kind.equal?(:i) && Expr === arg
         write IMMEDIATE_PREFIX
       end
       arg.write(self)
