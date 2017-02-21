@@ -242,7 +242,7 @@ module SRB
       if disp && disp != 0
         disp.write(self)
       end
-      write '-' if auto == :-
+      write '-' if auto.equal?(:-)
       write '('
       base.write(self)
       if index
@@ -250,7 +250,7 @@ module SRB
         index.write(self)
       end
       write ')'
-      write '-' if auto == :+
+      write '-' if auto.equal?(:+)
     end
 
     def write_index(index, scale)

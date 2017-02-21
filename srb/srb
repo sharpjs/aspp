@@ -263,7 +263,7 @@ module SRB
     # Emits a label.
     #
     def at(sym)
-      @out << Label.new(__symbol__(sym).resolve(self), :public)
+      @out << Label.new(__symbol__(sym).resolve(self), @visibility)
       nil
     end
 
