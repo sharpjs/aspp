@@ -117,6 +117,66 @@ module RAS
   # ----------------------------------------------------------------------------
   # 
 
+  ##
+  # A one-to-one map for expression aliases.
+  #
+  class AliasMap < CleanObject
+    ##
+    # Creates a new alias map as a child of +parent+.
+    #
+    def initialize(parent = nil)
+      @parent = parent
+      @k2v    = {} # key -> val (an alias has only one meaning)
+      @v2k    = {} # val -> key (a meaning has only one alias)
+    end
+
+    def __parent__
+      @parent
+    end
+
+    def __to_h__
+      @k2v.clone
+    end
+
+    def has_key?(key)
+      @k2v.has_key?(key) || @parent&.has_key?(key) 
+    end
+
+    def has_value?(val)
+      @v2k.has_key?(val) || @parent&.has_value?(val) 
+    end
+
+    def [](key)
+      @k2v[key] || @parent&.[](key)
+    end
+
+    def []=(key, val)
+      @v2k.delete(@k2v[key]) # Remove map: new key <- old val
+      @k2v.delete(@v2k[val]) # Remove map: old key -> new val
+      @k2v[key] = val
+      @v2k[val] = key
+      val
+    end
+
+    private
+
+    ALIAS_RE = /^([_[:lower:]][_[:alnum:]]*)(=)?$/
+
+    def method_missing(name, *args, &block)
+      if name !~ ALIAS_RE
+        super
+      elsif $2 # assignment
+        __send__ :[]=, $1, *args
+      else # reference
+        __send__ :[], $1, *args or super
+      end
+    end
+
+    def respond_to_missing?(name, all)
+      name =~ ALIAS_RE and $2 || has_key?($1)
+    end
+  end
+
 end # module RAS
 
 #require_relative 'arch-cf'
