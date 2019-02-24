@@ -166,9 +166,9 @@ module RAS
       if name !~ ALIAS_RE
         super
       elsif $2 # assignment
-        __send__ :[]=, $1, *args
+        __send__(:[]=, $1, *args)
       else # reference
-        __send__ :[], $1, *args or super
+        __send__(:[], $1, *args) or super
       end
     end
 
