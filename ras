@@ -166,14 +166,14 @@ module RAS
       if name !~ ALIAS_RE
         super
       elsif $2 # assignment
-        __send__(:[]=, $1, *args)
+        __send__(:[]=, $1.to_sym, *args)
       else # reference
-        __send__(:[], $1, *args) or super
+        __send__(:[], name, *args) or super
       end
     end
 
     def respond_to_missing?(name, all)
-      name =~ ALIAS_RE and $2 || has_key?($1)
+      name =~ ALIAS_RE and $2 || has_key?(name)
     end
   end
 

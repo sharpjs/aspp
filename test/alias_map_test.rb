@@ -44,7 +44,7 @@ module RAS
       map = AliasMap.new
       map.foo = :a
       map.bar = :b
-      assert_equal map.__to_h__, { "foo" => :a, "bar" => :b }
+      assert_equal ({ foo: :a, bar: :b }) , map.__to_h__ 
     end
 
     def test_get_unset
