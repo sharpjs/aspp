@@ -57,6 +57,27 @@ module RAS
       map.foo = :a
       assert_equal :a, map.foo
     end
+
+    class TestAliasMap < AliasMap
+      define_method :respond_to?, ::Object.instance_method(:respond_to?)
+    end
+
+    def test_respond_to_unset
+      map = TestAliasMap.new
+      assert  map.respond_to?(:[])
+      assert !map.respond_to?(:**)
+      assert  map.respond_to?(:foo=)
+      assert !map.respond_to?(:foo)
+    end
+
+    def test_respond_to_set
+      map = TestAliasMap.new
+      map.foo = :a
+      assert  map.respond_to?(:[])
+      assert !map.respond_to?(:**)
+      assert  map.respond_to?(:foo=)
+      assert  map.respond_to?(:foo)
+    end
   end
 end
 
