@@ -142,10 +142,6 @@ module RAS
       @k2v.has_key?(key) || @parent&.has_key?(key) 
     end
 
-    def has_value?(val)
-      @v2k.has_key?(val) || @parent&.has_value?(val) 
-    end
-
     def [](key)
       @k2v[key] || @parent&.[](key)
     end
