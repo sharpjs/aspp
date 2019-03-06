@@ -58,6 +58,14 @@ module RAS
       assert_equal :a, map.foo
     end
 
+    def test_set_other_attr_equal_value
+      map = AliasMap.new
+      map.foo = +"a"
+      map.bar = +"a"
+      assert_raises(NoMethodError) { map.foo }
+      assert_equal "a", map.bar
+    end
+
     class TestAliasMap < AliasMap
       define_method :respond_to?, ::Object.instance_method(:respond_to?)
     end
