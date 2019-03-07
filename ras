@@ -130,14 +130,6 @@ module RAS
       @v2k    = {} # val -> key (a meaning has only one alias)
     end
 
-    def __parent__
-      @parent
-    end
-
-    def __to_h__
-      @k2v.clone
-    end
-
     def has_key?(key)
       @k2v.has_key?(key) || @parent&.has_key?(key) 
     end

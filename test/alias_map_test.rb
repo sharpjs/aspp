@@ -24,29 +24,6 @@ require "minitest/autorun"
 
 module RAS
   class AliasMapTests < Minitest::Test
-    def test_parent_nil
-      map = AliasMap.new
-      assert map.__parent__.nil?
-    end
-
-    def test_parent_not_nil
-      map0 = AliasMap.new
-      map1 = AliasMap.new map0
-      assert_equal map0.__id__, map1.__parent__.__id__
-    end
-
-    def test_to_h_initial
-      map = AliasMap.new
-      assert map.__to_h__.empty?
-    end
-
-    def test_to_h_after_set
-      map = AliasMap.new
-      map.foo = :a
-      map.bar = :b
-      assert_equal ({ foo: :a, bar: :b }) , map.__to_h__ 
-    end
-
     def test_get_unset
       map = AliasMap.new
       assert_raises(NoMethodError) { map.foo }
