@@ -24,23 +24,31 @@ require "minitest/autorun"
 
 module RAS
   class AliasMapTests < Minitest::Test
-    def test_get_unset
-      map = AliasMap.new
-      assert_raises(NoMethodError) { map.foo }
+    def setup
+      @top = AliasMap.new       # top-level
+      @sub = AliasMap.new @top  # subscope
     end
 
-    def test_get_set
-      map = AliasMap.new
-      map.foo = :a
-      assert_equal :a, map.foo
+    def test_get_undefined
+      assert_raises(NoMethodError) { @top.foo }
+      assert_raises(NoMethodError) { @sub.foo }
+    end
+
+    def test_get_inherited
+      @top.foo = :a
+      assert_equal :a, @sub.foo
+    end
+
+    def test_get_assigned
+      @sub.foo = :a
+      assert_equal :a, @sub.foo
     end
 
     def test_set_other_attr_equal_value
-      map = AliasMap.new
-      map.foo = +"a"
-      map.bar = +"a"
-      assert_raises(NoMethodError) { map.foo }
-      assert_equal "a", map.bar
+      @map.foo = +"a"
+      @map.bar = +"a"
+      assert_raises(NoMethodError) { @map.foo }
+      assert_equal "a", @map.bar
     end
 
     class TestAliasMap < AliasMap
@@ -48,20 +56,18 @@ module RAS
     end
 
     def test_respond_to_unset
-      map = TestAliasMap.new
-      assert  map.respond_to?(:[])
-      assert !map.respond_to?(:**)
-      assert  map.respond_to?(:foo=)
-      assert !map.respond_to?(:foo)
+      assert  @map.respond_to?(:[])
+      assert !@map.respond_to?(:**)
+      assert  @map.respond_to?(:foo=)
+      assert !@map.respond_to?(:foo)
     end
 
     def test_respond_to_set
-      map = TestAliasMap.new
-      map.foo = :a
-      assert  map.respond_to?(:[])
-      assert !map.respond_to?(:**)
-      assert  map.respond_to?(:foo=)
-      assert  map.respond_to?(:foo)
+      @map.foo = :a
+      assert  @map.respond_to?(:[])
+      assert !@map.respond_to?(:**)
+      assert  @map.respond_to?(:foo=)
+      assert  @map.respond_to?(:foo)
     end
   end
 end
