@@ -96,6 +96,10 @@ module RAS
         sandbox.__eval__(ruby, name, line)
       end
     end
+
+    def my
+      @aliases
+    end
   end
 
   ##
