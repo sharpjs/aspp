@@ -49,6 +49,18 @@ module RAS
       assert_equal :a, @sub.foo
     end
 
+    def test_index_undefined
+      assert_nil @sub[:foo]
+    end
+
+    def test_index_inherited
+      @top[:foo] = :a
+      assert_equal :a, @sub[:foo]
+    end
+
+    def test_index_assigned
+      @sub[:foo] = :a
+      assert_equal :a, @sub[:foo]
     end
 
     def test_set_other_attr_equal_value
