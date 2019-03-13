@@ -67,23 +67,20 @@ module RAS
     end
 
     def self.const_missing(name)
-      # This serves only to make 'uninitialized constant' errors prettier.
+      # Make 'uninitialized constant' errors prettier.
       ::Object.const_get(name)
     end
   end
 
   class Context < CleanObject
     def initialize(out, parent, name)
-      @out    = out
-      @parent = parent
-     #@name   = parent&.__symbol__(name, :hidden)
+      @out     = out
+      @parent  = parent
+     #@name    = parent&.__symbol__(name, :hidden)
+      @aliases = AliasMap.new #parent&.@aliases
 
-      @alias_k2v = {} # key -> val (an alias has only one meaning)
-      @alias_v2k = {} # val -> key (a meaning has only one alias)
-
-      @symbols     = {}
-      @local_num   = -1
-
+      @symbols    = {}
+      @local_num  = -1
       @visibility = :local
     end
 
@@ -94,9 +91,9 @@ module RAS
       sandbox = Sandbox.new(self)
 
       if ::Proc === ruby
-        proxy.__eval__(&ruby)
+        sandbox.__eval__(&ruby)
       else
-        proxy.__eval__(ruby, name, line)
+        sandbox.__eval__(ruby, name, line)
       end
     end
   end
