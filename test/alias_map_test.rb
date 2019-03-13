@@ -24,6 +24,11 @@ require "minitest/autorun"
 
 module RAS
   class AliasMapTests < Minitest::Test
+
+    # TODO: There will be breakage when a child map tries to 'transfer' a value
+    # that is already mapped in a parent map.  It's probably easy to fix, but I
+    # want to work on something else now.
+
     class TestAliasMap < AliasMap
       # Need this to test respond_to_missing?
       define_method :respond_to?, ::Object.instance_method(:respond_to?)
