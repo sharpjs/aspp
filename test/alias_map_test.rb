@@ -34,19 +34,39 @@ module RAS
       @sub = TestAliasMap.new @top  # subscope
     end
 
-    def test_get_undefined
+    def test_attr_undefined
       assert_raises(NoMethodError) { @top.foo }
       assert_raises(NoMethodError) { @sub.foo }
     end
 
-    def test_get_inherited
+    def test_attr_inherited
       @top.foo = :a
       assert_equal :a, @sub.foo
     end
 
-    def test_get_assigned
+    def test_attr_assigned
       @sub.foo = :a
       assert_equal :a, @sub.foo
+    end
+
+    def test_attr_overridden
+      @top.foo = :a
+      @sub.foo = :b
+      assert_equal :a, @top.foo
+      assert_equal :b, @sub.foo
+    end
+
+    def test_attr_reassigned
+      @sub.foo = :a
+      @sub.foo = :b
+      assert_equal :b, @sub.foo
+    end
+
+    def test_attr_transferred
+      @sub.foo = :a
+      @sub.bar = :a
+      assert_raises(NoMethodError) { @sub.foo }
+      assert_equal :a, @sub.bar
     end
 
     def test_index_undefined
@@ -63,21 +83,42 @@ module RAS
       assert_equal :a, @sub[:foo]
     end
 
-    def test_set_other_attr_equal_value
-      @sub.foo = +"a"
-      @sub.bar = +"a"
-      assert_raises(NoMethodError) { @sub.foo }
-      assert_equal "a", @sub.bar
+    def test_index_overridden
+      @top[:foo] = :a
+      @sub[:foo] = :b
+      assert_equal :a, @top[:foo]
+      assert_equal :b, @sub[:foo]
     end
 
-    def test_respond_to_unset
+    def test_index_reassigned
+      @sub[:foo] = :a
+      @sub[:foo] = :b
+      assert_equal :b, @sub[:foo]
+    end
+
+    def test_index_transferred
+      @sub[:foo] = :a
+      @sub[:bar] = :a
+      assert_nil       @sub[:foo]
+      assert_equal :a, @sub[:bar]
+    end
+
+    def test_respond_to_undefined
       assert  @sub.respond_to?(:[])
       assert !@sub.respond_to?(:**)
       assert  @sub.respond_to?(:foo=)
       assert !@sub.respond_to?(:foo)
     end
 
-    def test_respond_to_set
+    def test_respond_to_inherited
+      @top.foo = :a
+      assert  @sub.respond_to?(:[])
+      assert !@sub.respond_to?(:**)
+      assert  @sub.respond_to?(:foo=)
+      assert  @sub.respond_to?(:foo)
+    end
+
+    def test_respond_to_assigned
       @sub.foo = :a
       assert  @sub.respond_to?(:[])
       assert !@sub.respond_to?(:**)
