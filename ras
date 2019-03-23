@@ -87,12 +87,9 @@ module RAS
     # Evaluates the given ruby code in the context.
     #
     def eval(ruby, name="(stdin)", line=1)
-      sandbox = Sandbox.new(self)
-
-      if ::Proc === ruby
-        sandbox.__eval__(&ruby)
-      else
-        sandbox.__eval__(ruby, name, line)
+      case ruby
+      when Proc then Sandbox.new(self).__eval__(&ruby)
+      else           Sandbox.new(self).__eval__(ruby, name, line)
       end
     end
 
