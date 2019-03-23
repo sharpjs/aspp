@@ -211,6 +211,9 @@ if __FILE__ == $0
       .__eval__(ARGF.file.read, ARGF.filename)
     ARGF.skip
     break if ARGV.empty?
+  rescue RAS::Error
+    # Is a source error rather than internal error; suppress backtrace
+    exit false
   end
 end
 
