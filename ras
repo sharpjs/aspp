@@ -34,16 +34,15 @@ module RAS
 
   class CleanObject < BasicObject
     # public  methods: __send__, __eval__, __exec__, __id__
-    # private methods: initialize, method_missing
+    # private methods: initialize, method_missing, singleton_method_added,
+    #                  singleton_method_removed, singleton_method_undefined
 
     define_method :__send__, ::Object.instance_method(:public_send)
     define_method :__eval__,          instance_method(:instance_eval)
     define_method :__exec__,          instance_method(:instance_exec)
 
-    undef_method  :!, :!=, :==, :equal?, :instance_eval, :instance_exec,
-                  :singleton_method_added,
-                  :singleton_method_removed,
-                  :singleton_method_undefined
+    undef_method :!, :!=, :==, :equal?, :instance_eval, :instance_exec
+
     freeze
   end
 
