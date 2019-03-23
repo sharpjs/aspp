@@ -96,6 +96,29 @@ module RAS
     def my
       @aliases
     end
+
+    def print *xs, prefix: nil
+      loc = source_location
+      $stderr.puts *xs.map { |x| "#{loc}: #{prefix}#{x}" }
+    end
+
+    def warning *xs
+      print *xs, prefix: "WARNING: "
+    end
+
+    def error msg
+      print msg, prefix: "ERROR: "
+      ::Kernel.raise Error, msg
+    end
+
+    private
+
+    def source_location
+      dir  = ::File.join(::Kernel.__dir__, "")
+      locs = ::Kernel.caller_locations
+      loc  = locs.find { |l| !l.absolute_path.start_with?(dir) } || locs[0]
+      "#{loc.path}:#{loc.lineno}"
+    end
   end
 
   ##
@@ -108,6 +131,11 @@ module RAS
     def initialize(out)
       super(out, nil, nil)
       @visibility = :public
+    end
+
+  class Error < RuntimeError
+    def location
+      backtrace_locations
     end
   end
 
