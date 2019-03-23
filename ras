@@ -133,6 +133,19 @@ module RAS
       @visibility = :public
     end
 
+    ##
+    # Sets symbol visibility to public.
+    def public #(*syms)
+      @visibility = :public
+    end
+
+    ##
+    # Sets symbol visibility to private.
+    def private #(*syms)
+      @visibility = :private
+    end
+  end
+
   class Error < RuntimeError
     def location
       backtrace_locations
