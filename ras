@@ -88,8 +88,8 @@ module RAS
     #
     def eval(ruby, name="(stdin)", line=1)
       case ruby
-      when Proc then Sandbox.new(self).__eval__(&ruby)
-      else           Sandbox.new(self).__eval__(ruby, name, line)
+      when ::Proc then Sandbox.new(self).__eval__(&ruby)
+      else             Sandbox.new(self).__eval__(ruby, name, line)
       end
     end
 
@@ -281,7 +281,7 @@ if __FILE__ == $0
   loop do
     RAS::TopLevel
       .new(nil)
-      .__eval__(ARGF.file.read, ARGF.filename)
+      .eval(ARGF.file.read, ARGF.filename)
     ARGF.skip
     break if ARGV.empty?
   rescue RAS::Error
