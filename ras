@@ -146,12 +146,6 @@ module RAS
     end
   end
 
-  class Error < RuntimeError
-    def location
-      backtrace_locations
-    end
-  end
-
   # ----------------------------------------------------------------------------
   # 
 
@@ -200,6 +194,12 @@ module RAS
 
     def respond_to_missing?(name, all)
       name =~ ALIAS_RE and $2 || has_key?(name)
+    end
+  end
+
+  class Error < RuntimeError
+    def location
+      backtrace_locations
     end
   end
 
