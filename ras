@@ -197,6 +197,66 @@ module RAS
     end
   end
 
+  class Output
+    attr :sections
+
+    def initialize
+      @sections = []
+    end
+  end
+
+  class Section
+    attr :name, :flags, :content
+  end
+
+  class ByteSection < Section
+    def initialize(name)
+      @content = "".b
+    end
+
+    def data8(*xs)
+      @content << xs.pack("C")
+    end
+  end
+
+  class BigEndianSection < ByteSection
+    def data16(*xs)
+      @content << xs.pack("S>") # big endian
+    end
+
+    def data32(*xs)
+      @content << xs.pack("L>") # big endian
+    end
+
+    def data64(*xs)
+      @content << xs.pack("Q>") # big endian
+    end
+  end
+
+  class LittleEndianSection < ByteSection
+    def data16(*xs)
+      @content << xs.pack("S<") # big endian
+    end
+
+    def data32(*xs)
+      @content << xs.pack("L<") # big endian
+    end
+
+    def data64(*xs)
+      @content << xs.pack("Q<") # big endian
+    end
+  end
+
+  class WordSection < Section
+    def initialize(name)
+      @content = []
+    end
+
+    def data(*xs)
+      @content << xs.map(&::Kernel.Integer)
+    end
+  end
+
   class Error < RuntimeError
     def location
       backtrace_locations
