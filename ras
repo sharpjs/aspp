@@ -111,6 +111,15 @@ module RAS
       ::Kernel.raise Error, msg
     end
 
+    protected
+
+    def int(val, bits)
+      case val = ::Kernel.Integer(val)
+      when -128..255 then val
+      else ::Kernel.raise ::RangeError, "#{val} does not fit into #{bits} bits"
+      end
+    end
+
     private
 
     def source_location
