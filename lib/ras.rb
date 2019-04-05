@@ -1,4 +1,3 @@
-#!/usr/bin/env ruby
 # frozen_string_literal: true
 # encoding: utf-8
 #
@@ -17,7 +16,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with RAS.  If not, see <http://www.gnu.org/licenses/>.
-#
 
 module RAS
 
@@ -276,28 +274,4 @@ end # module RAS
 
 #require_relative 'arch-cf'
 #require_relative 'syntax-mot'
-
-# ----------------------------------------------------------------------------
-# Main
-
-if __FILE__ == $0
-  # Running as a script
-
-  # Don't print "broken pipe" error messages
-  trap "PIPE", "SYSTEM_DEFAULT"
-
-  # Process each specified file
-  loop do
-    RAS::TopLevel
-      .new(nil)
-      .eval(ARGF.file.read, ARGF.filename)
-    ARGF.skip
-    break if ARGV.empty?
-  rescue RAS::Error
-    # Is a source error rather than internal error; suppress backtrace
-    exit false
-  end
-end
-
-#vim: set ft=ruby
 

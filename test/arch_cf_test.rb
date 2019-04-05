@@ -19,42 +19,12 @@
 # along with RAS.  If not, see <http://www.gnu.org/licenses/>.
 
 require_relative "../lib/ras"
+require_relative "../lib/ras/arch-cf"
 require "minitest/autorun"
 
 module RAS
-  class ContextTests < Minitest::Test
-    def test_int_in_range
-      assert_equal   42, int(  42, 8)
-      assert_equal -128, int(-128, 8)
-      assert_equal  255, int( 255, 8)
-    end
-
-    def test_int_string
-      assert_equal -42, int( "-42", 8)
-      assert_equal 100, int("0x64", 8)
-    end
-
-    def test_int_inconvertible
-      assert_raises TypeError do
-        int(:foo, 8)
-      end
-    end
-
-    def test_int_underflow
-      assert_raises RangeError do
-        int(-129, 8)
-      end
-    end
-
-    def test_int_overflow
-      assert_raises RangeError do
-        int(256, 8)
-      end
-    end
-
-    def int(*args)
-      Context.new(nil, nil, nil).__exec__ { int(*args) }
-    end
+  class ArchCfTests < Minitest::Test
+    # ...
   end
 end
 

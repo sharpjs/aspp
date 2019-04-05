@@ -17,9 +17,8 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with RAS.  If not, see <http://www.gnu.org/licenses/>.
-#
 
-require_relative "ras"
+require_relative "../lib/ras"
 require "minitest/autorun"
 
 module RAS
