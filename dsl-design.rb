@@ -1,4 +1,4 @@
-# ColdFire Assembly DSL
+# Assembly DSL (ColdFire ISA as example)
 
 # Addressing Modes
 
@@ -48,6 +48,37 @@
   end
 
 # Data
+
+  # aspects:
+  # - alignment
+  # - field width
+  # - value width
+  # - value fill behavior
+  # - value encoding
+
+  # directive specifies field only
+
+  arch        :pdp10, 'DEC PDP-10'
+  unit_size   36
+  unit_order  :be
+  unaligned
+  aligned
+
+  data_sizes  word: 1
+
+  def word *vs; raw 1, *vs; end
+
+  arch        :m68k, 'Motorola 680X0 / ColdFire'
+  unit_size   8
+  unit_order  :be
+  unaligned
+  aligned
+
+  data 2,     0xFFFF
+
+  data_sizes  byte: 1, word: 2, long: 4
+
+  # directive specifies everything
 
   i8        1, 2            #  8-bit integer (signed or unsigned)
   i16       1, 2            # 16-bit integer (signed or unsigned)
