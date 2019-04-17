@@ -47,47 +47,54 @@
     move.l      d0, [:dmr1]
   end
 
-# Data
-
-  # aspects:
-  # - alignment
-  # - field width
-  # - value width
-  # - value fill behavior
-  # - value encoding
-
-  # directive specifies field only
+# Architecture
 
   arch        :pdp10, 'DEC PDP-10'
   unit_size   36
   unit_order  :be
-  unaligned
-  aligned
-
   data_sizes  word: 1
-
-  def word *vs; raw 1, *vs; end
 
   arch        :m68k, 'Motorola 680X0 / ColdFire'
   unit_size   8
   unit_order  :be
+  data_sizes  byte: 1, word: 2, long: 4
+
+# Data
+
+  # aspects:
+  # - byte order
+  # - alignment
+  # - field width
+  # - value width
+  # - value justification
+  # - value encoding
+
+  # - byte order
+  unit_order  :be
+  unit_order  :le
+
+  # - alignment
   unaligned
   aligned
 
-  data 2,     0xFFFF
+  # value width/justification/encoding + field width
+  int8      42
+  int16     42
+  int32     42
+  int64     42
+  float16   3.14
+  float32   3.14
+  float64   3.14
+  float96   3.14
+  char8     "hello"
+  char16    "hello"
+  char32    "hello"
+  string8   "hello"
+  string16  "hello"
+  string32  "hello"
+  mystruct  a: 42, b: "hello"
 
-  data_sizes  byte: 1, word: 2, long: 4
+  # underlying call for string32
+  RAS::String.write(@out, 4, "hello")
 
-  # directive specifies everything
-
-  i8        1, 2            #  8-bit integer (signed or unsigned)
-  i16       1, 2            # 16-bit integer (signed or unsigned)
-  i32       1, 2            # 32-bit integer (signed or unsigned)
-  i64       1, 2            # 64-bit integer (signed or unsigned)
-  f16       1.0, 2.0        # 16-bit float
-  f32       1.0, 2.0        # 32-bit float
-  f64       1.0, 2.0        # 64-bit float
-  utf8      "a"             # UTF-8 characters
-  utf8z     "a"             # UTF-8 characters + null terminator
-  foo       a: 42, b: "hi"  # struct
 
