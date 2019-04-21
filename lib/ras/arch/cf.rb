@@ -17,14 +17,10 @@
 # You should have received a copy of the GNU General Public License
 # along with RAS.  If not, see <http://www.gnu.org/licenses/>.
 
-#require_relative '../refinements'
-
 module RAS
-  #using self
-
   module CF
     class GenReg
-      attr_reader :name, :number_3bit, :number_4bit
+      attr_reader :name, :number_u3, :number_u4
 
       def initialize(name, num3, num4)
         @name      = name
@@ -46,32 +42,49 @@ module RAS
       end
     end
 
-    DATA_REGS = (0..7).map { |n| DataReg.new(:"d#{n}", n) }
-    ADDR_REGS = (0..7).map { |n| AddrReg.new(:"a#{n}", n) }
+    DATA_REGS = (0..7).map { |n| DataReg.new(:"d#{n}", n) }.freeze
+    ADDR_REGS = (0..7).map { |n| AddrReg.new(:"a#{n}", n) }.freeze
+
+    module CodeGen
+      private
+
+      def dr(r)
+        case r
+        when DataReg then r.number_u3
+        else raise "Expected: data register"
+        end
+      end
+
+      def ar(r)
+        case r
+        when DataReg then r.number_u3
+        else raise "Expected: address register"
+        end
+      end
+
+      def word(w); puts w.to_s(8); end
+    end
 
     class Code
-      def d0; DATA_REGS[0]; end
-      def d1; DATA_REGS[1]; end
-      def d2; DATA_REGS[2]; end
-      def d3; DATA_REGS[3]; end
-      def d4; DATA_REGS[4]; end
-      def d5; DATA_REGS[5]; end
-      def d6; DATA_REGS[6]; end
-      def d7; DATA_REGS[7]; end
-
-      def a0; ADDR_REGS[0]; end
-      def a1; ADDR_REGS[1]; end
-      def a2; ADDR_REGS[2]; end
-      def a3; ADDR_REGS[3]; end
-      def a4; ADDR_REGS[4]; end
-      def a5; ADDR_REGS[5]; end
-      def a6; ADDR_REGS[6]; end
-      def a7; ADDR_REGS[7]; end
+      DATA_REGS.each do |r| define_method(r.name) {r} end
+      ADDR_REGS.each do |r| define_method(r.name) {r} end
 
       alias fp a6
       alias sp a7
+
+      def ext; Ext.new; end
     end
 
+    class Ext
+      include CodeGen
+      def bw(d); word 0044200 | dr(d); end # replaces ext.w
+      def wl(d); word 0044300 | dr(d); end # replaces ext.l
+      def bl(d); word 0044700 | dr(d); end # replaces extb.l
+    end
+
+    # temp testing junk
+    c = Code.new
+    c.ext.wl c.d6
   end
 end
 
