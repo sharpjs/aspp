@@ -49,17 +49,24 @@ module RAS
       private
 
       def dr(r)
-        case r
-        when DataReg then r.number_u3
-        else raise "Expected: data register"
+        unless r.is_a?(DataReg)
+          raise "Invalid data register: #{r.inspect}"
         end
+        r.number_u3
       end
 
       def ar(r)
-        case r
-        when DataReg then r.number_u3
-        else raise "Expected: address register"
+        unless r.is_a?(AddrReg)
+          raise "Invalid address register: #{r.inspect}"
         end
+        r.number_u3
+      end
+
+      def q8(v)
+        unless v.is_a?(Integer) && v.bit_length < 8
+          raise "Invalid 8-bit signed integer: #{v.inspect}"
+        end
+        v
       end
 
       def word(w); puts w.to_s(8); end
@@ -72,19 +79,26 @@ module RAS
       alias fp a6
       alias sp a7
 
-      def ext; Ext.new; end
+      def ext  () Ext  .new end
+      def moveq() Moveq.new end
     end
 
     class Ext
       include CodeGen
-      def bw(d); word 0044200 | dr(d); end # replaces ext.w
-      def wl(d); word 0044300 | dr(d); end # replaces ext.l
-      def bl(d); word 0044700 | dr(d); end # replaces extb.l
+      def bw(d) word 0o044200 | dr(d) end # replaces ext.w
+      def wl(d) word 0o044300 | dr(d) end # replaces ext.l
+      def bl(d) word 0o044700 | dr(d) end # replaces extb.l
+    end
+
+    class Moveq
+      include CodeGen
+      def l(s, d) word 0o030000 | dr(d) << 9 | q8(s) end
     end
 
     # temp testing junk
-    c = Code.new
-    c.ext.wl c.d6
+    Code.new.instance_eval do
+      moveq.l 127, d4
+    end
   end
 end
 
