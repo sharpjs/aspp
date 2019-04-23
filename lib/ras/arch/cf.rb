@@ -19,7 +19,34 @@
 
 module RAS
   module CF
+    # Addressing Modes
+    #        mask bit         nickname  description
+    #        --------------   --------  ---------------------------
+    MODE_D = 0b100000000000 # data      data register direct
+    MODE_A = 0b010000000000 # address   address register direct
+    MODE_I = 0b001000000000 # indirect  address register Indirect
+    MODE_P = 0b000100000000 # plus      address register indirect, post-increment
+    MODE_M = 0b000010000000 # minus     address register indirect, pre-decrement
+    MODE_O = 0b000001000000 # offset    base + displacement
+    MODE_X = 0b000000100000 # index     base + displacement + scaled index
+    MODE_W = 0b000000010000 # word      absolute signed word
+    MODE_L = 0b000000001000 # long      absolute unsigned long
+    MODE_V = 0b000000000100 # value     immediate
+    MODE_R = 0b000000000010 # relative  pc-relative + displacement
+    MODE_T = 0b000000000001 # table     pc-relative + displacement + scaled index
+
+    # Mode Combinations
+    #                  DAIPMOXWLVRT
+    M_DAIPMOXWLVRT = 0b111111111111
+    M____PMOXWL___ = 0b000111111000
+
+    module Mode
+      #mode_mask   #=> Integer
+      #encode_mode #=> Integer
+    end
+
     class GenReg
+      include Mode
       attr_reader :name, :number_u3, :number_u4
 
       def initialize(name, num3, num4)
@@ -34,12 +61,18 @@ module RAS
       def initialize(name, num)
         super(name, num, num)
       end
+
+      def mode_mask;   MODE_D;           end
+      def encode_mode; 0o10 | number_u3; end
     end
 
     class AddrReg < GenReg
       def initialize(name, num)
         super(name, num, num + 8)
       end
+
+      def mode_mask;   MODE_A;           end
+      def encode_mode; 0o10 | number_u3; end
     end
 
     DATA_REGS = (0..7).map { |n| DataReg.new(:"d#{n}", n) }.freeze
@@ -69,6 +102,15 @@ module RAS
         v
       end
 
+      def mode(x, mask)
+        if !x.is_a?(Mode)
+          raise "Invalid addressing mode: #{x.inspect}"
+        elsif x.mode_mask.nobits?(mask)
+          raise "Unsupported addressing mode: #{x.inspect}"
+        end
+        x.encode_mode
+      end
+
       def word(w); puts w.to_s(8); end
     end
 
@@ -79,8 +121,22 @@ module RAS
       alias fp a6
       alias sp a7
 
+      def add  () Add  .new end
       def ext  () Ext  .new end
       def moveq() Moveq.new end
+    end
+
+    class Add
+      include CodeGen
+      def l(s, d)
+        if d.is_a?(DataReg)
+          word 0o150200 | dr(d) << 9 | mode(s, M_DAIPMOXWLVRT)
+        elsif s.is_a?(DataReg)
+          word 0o150600 | dr(s) << 9 | mode(d, M___IPMOXWL___)
+        else
+          raise "Invalid operands for add.l."
+        end
+      end
     end
 
     class Ext
@@ -98,6 +154,7 @@ module RAS
     # temp testing junk
     Code.new.instance_eval do
       moveq.l 127, d4
+      add.l d3, d4
     end
   end
 end
