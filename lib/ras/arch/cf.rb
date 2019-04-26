@@ -17,9 +17,32 @@
 # You should have received a copy of the GNU General Public License
 # along with RAS.  If not, see <http://www.gnu.org/licenses/>.
 
+require_relative '../base'
+
 module RAS
   module CF
+    refine Object do
+      def to_cf_mode
+        raise Error, "invalid addressing mode: #{inspect}"
+      end
+    end
+
+    refine Integer do
+      def to_cf_mode
+        Immediate.new self
+      end
+    end
+
+    refine Array do
+      def to_cf_mode
+        #...
+      end
+    end
+
+    using self
+
     # Addressing Modes
+
     #        mask bit         nickname  description
     #        --------------   --------  ---------------------------
     MODE_D = 0b100000000000 # data      data register direct
@@ -35,22 +58,97 @@ module RAS
     MODE_R = 0b000000000010 # relative  pc-relative + displacement
     MODE_T = 0b000000000001 # table     pc-relative + displacement + scaled index
 
-    # Mode Combinations
     #                  DAIPMOXWLVRT
     M_DAIPMOXWLVRT = 0b111111111111
     M____PMOXWL___ = 0b000111111000
 
-    module Mode
-      #mode_mask   #=> Integer
-      #encode_mode #=> Integer
+    class Mode
+      #mode_mask   => Integer
+      #encode_mode => Integer
     end
 
-    class GenReg
-      include Mode
-      attr_reader :name, :number_u3, :number_u4
+    # Immediate
+
+    class Immediate < Mode
+      attr_reader :expr
+
+      def initialize(expr)
+        @expr = expr
+      end
+
+      def mode_mask
+        MODE_V
+      end
+
+      def encode
+        0b111_100
+        # and set up to add extension word
+      end
+
+      def inspect
+        expr.inspect
+      end
+    end
+
+    # Absolute
+
+    class Absolute
+      attr_reader :addr
+
+      def initialize(addr)
+        @addr = addr
+      end
+    end
+
+    class Absolute16 < Absolute
+      def mode_mask
+        MODE_W
+      end
+
+      def encode
+        0b111_000
+        # and set up to add extension word
+      end
+
+      def inspect
+        "[#{addr.inspect}].w"
+      end
+    end
+
+    class Absolute32 < Absolute
+      def mode_mask
+        MODE_L
+      end
+
+      def encode
+        0b111_001
+        # and set up to add extension word
+      end
+
+      def inspect
+        "[#{addr.inspect}]"
+      end
+    end
+
+    # Register
+
+    class Register
+      attr_reader :name
+
+      def initialize(name)
+        @name = name
+      end
+
+      def inspect
+        name
+      end
+    end
+
+    class GenReg < Register
+      attr_reader :number_u3, :number_u4
 
       def initialize(name, num3, num4)
-        @name      = name
+        super(name)
         @number_u3 = num3
         @number_u4 = num4
         freeze
@@ -62,8 +160,8 @@ module RAS
         super(name, num, num)
       end
 
-      def mode_mask;   MODE_D;           end
-      def encode_mode; 0o10 | number_u3; end
+      def mode_mask; MODE_D; end
+      def encode_mode; 0b000_000 | number_u3; end
     end
 
     class AddrReg < GenReg
@@ -71,42 +169,213 @@ module RAS
         super(name, num, num + 8)
       end
 
-      def mode_mask;   MODE_A;           end
-      def encode_mode; 0o10 | number_u3; end
+      def mode_mask; MODE_A; end
+      def encode_mode; 0b001_000 | number_u3; end
+    end
+
+    class AuxReg < Register
+    end
+
+    class CtlReg < Register
     end
 
     DATA_REGS = (0..7).map { |n| DataReg.new(:"d#{n}", n) }.freeze
     ADDR_REGS = (0..7).map { |n| AddrReg.new(:"a#{n}", n) }.freeze
+
+    # Indirect
+
+    class ScaledIndex
+      attr_reader :index, :scale
+
+      def initialize(index, scale)
+        @index = index
+        @scale = scale
+      end
+
+      def inspect
+        "#{index.inspect}*#{scale.inspect}"
+      end
+    end
+
+    class AddrInd
+      attr_reader :reg
+
+      def initialize(reg)
+        @reg = reg
+      end
+
+      def mode_mask
+        MODE_I
+      end
+
+      def encode_mode
+        0b010_000 | reg.number_u3
+      end
+
+      def inspect
+        "[#{reg.inspect}]"
+      end
+    end
+
+    class AddrIndInc # post-increment
+      attr_reader :reg
+
+      def initialize(reg)
+        @reg = reg
+      end
+
+      def mode_mask
+        MODE_P
+      end
+
+      def encode_mode
+        0b011_000 | reg.number_u3
+      end
+
+      def inspect
+        "+[#{reg.inspect}]"
+      end
+    end
+
+    class AddrIndDec # pre-decrement
+      attr_reader :reg
+
+      def initialize(reg)
+        @reg = reg
+      end
+
+      def mode_mask
+        MODE_M
+      end
+
+      def encode_mode
+        0b100_000 | reg.number_u3
+      end
+
+      def inspect
+        "[-#{reg.inspect}]"
+      end
+    end
+
+    class AddrDisp
+      attr_reader :base, :disp
+
+      def initialize(base, disp)
+        @base = base
+        @disp = disp
+      end
+
+      def mode_mask
+        MODE_D
+      end
+
+      def encode_mode
+        0b101_000 | reg.number_u3
+        # plus u16 displacement in extension word
+      end
+
+      def inspect
+        "[#{base.inspect}, #{disp.inspect}]"
+      end
+    end
+
+    class AddrDispIdx
+      attr_reader :base, :disp, :index
+
+      def initialize(base, disp, index)
+        @base  = base
+        @disp  = disp
+        @index = index
+      end
+
+      def mode_mask
+        MODE_X
+      end
+
+      def encode_mode
+        0b110_000 | reg.number_u3
+        # plus u8 displacement and index in extension word
+      end
+
+      def inspect
+        "[#{base.inspect}, #{disp.inspect}, #{index.scale}]"
+      end
+    end
+
+    class PcDisp
+      attr_reader :disp
+
+      def initialize(disp)
+        @disp = disp
+      end
+
+      def mode_mask
+        MODE_R
+      end
+
+      def encode_mode
+        0b111_010
+        # plus u16 displacement in extension word
+      end
+
+      def inspect
+        "[pc, #{disp.inspect}]"
+      end
+    end
+
+    class PcDispIdx
+      attr_reader :disp, :index
+
+      def initialize(disp, index)
+        @disp  = disp
+        @index = index
+      end
+
+      def mode_mask
+        MODE_R
+      end
+
+      def encode_mode
+        0b111_011
+        # plus u8 displacement and index in extension word
+      end
+
+      def inspect
+        "[pc, #{disp.inspect}, #{index.scale}]"
+      end
+    end
+
+    # Code Generation
 
     module CodeGen
       private
 
       def dr(r)
         unless r.is_a?(DataReg)
-          raise "Invalid data register: #{r.inspect}"
+          raise Error, "Invalid data register: #{r.inspect}"
         end
         r.number_u3
       end
 
       def ar(r)
         unless r.is_a?(AddrReg)
-          raise "Invalid address register: #{r.inspect}"
+          raise Error, "Invalid address register: #{r.inspect}"
         end
         r.number_u3
       end
 
       def q8(v)
         unless v.is_a?(Integer) && v.bit_length < 8
-          raise "Invalid 8-bit signed integer: #{v.inspect}"
+          raise Error, "Invalid 8-bit signed integer: #{v.inspect}"
         end
         v
       end
 
       def mode(x, mask)
         if !x.is_a?(Mode)
-          raise "Invalid addressing mode: #{x.inspect}"
+          raise Error, "Invalid addressing mode: #{x.inspect}"
         elsif x.mode_mask.nobits?(mask)
-          raise "Unsupported addressing mode: #{x.inspect}"
+          raise Error, "Unsupported addressing mode: #{x.inspect}"
         end
         x.encode_mode
       end
@@ -134,7 +403,7 @@ module RAS
         elsif s.is_a?(DataReg)
           word 0o150600 | dr(s) << 9 | mode(d, M___IPMOXWL___)
         else
-          raise "Invalid operands for add.l."
+          raise Error, "Invalid operands for add.l."
         end
       end
     end
@@ -154,7 +423,7 @@ module RAS
     # temp testing junk
     Code.new.instance_eval do
       moveq.l 127, d4
-      add.l d3, d4
+      #add.l d3, d4
     end
   end
 end
