@@ -475,7 +475,7 @@ module RAS
         elsif s.is_a?(DataReg)
           word 0o150600 | dr(s) << 9 | mode(d, MODES_WRITE_NON_REG)
         else
-          raise Error, "invalid operands for add.l."
+          raise Error, "invalid operands for add.l: #{s.inspect}, #{d.inspect}"
         end
       end
     end
