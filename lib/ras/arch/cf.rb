@@ -49,17 +49,48 @@ module RAS
       end
 
       def to_cf_mode
-        case length
-        when 1
-          case addr = self[0]
-          when Integer    then Absolute32.new(addr)
-          when AddrReg    then AddrInd   .new(addr)
-          when AddrRegDec then AddrIndDec.new(addr.reg)
+        # Initialize
+        base  = nil
+        disp  = nil
+        index = nil
+        scale = 1
+
+        # Classify terms
+        each do |term|
+          case term
+          when Integer
+            disp = (disp || 0) + term; next
+          when AddrReg
+            (base  = term; next) unless base
+            (index = term; next) unless index
+          when AddrRegDec, PcReg
+            (base  = term; next) unless base
+          when DataReg
+            (index = term; next) unless index
+          when ScaledIndex
+            (index = term.index;
+             scale = term.scale; next) unless index
           end
-        when 2
-          nil
-        when 3, 4
-          nil
+          super # raises
+        end
+
+        # Interpret
+        case base
+        when AddrReg
+          case
+          when index then AddrDispIdx.new(base, disp || 0, index, scale)
+          when disp  then AddrDisp   .new(base, disp)
+          else            AddrInd    .new(base)
+          end
+        when PcReg
+          case
+          when index then PcDispIdx.new(disp || 0, index, scale)
+          when disp  then PcDisp   .new(disp)
+          end
+        when AddrRegDec
+          AddrIndDec.new(base) unless disp || index
+        when nil
+          Absolute32.new(disp) unless index
         end or super
       end
     end
@@ -201,6 +232,10 @@ module RAS
         @number_u4 = num4
         freeze
       end
+
+      def *(scale)
+        ScaledIndex.new(self, scale)
+      end
     end
 
     class DataReg < GenReg
@@ -249,15 +284,30 @@ module RAS
     class CtlReg < Register
     end
 
+    class PcReg < Register
+      def initialize
+        super(:pc)
+      end
+    end
+
     DATA_REGS = (0..7).map { |n| DataReg.new(:"d#{n}", n) }.freeze
     ADDR_REGS = (0..7).map { |n| AddrReg.new(:"a#{n}", n) }.freeze
+    PC        = PcReg.new.freeze
 
     # Indirect
 
     class ScaledIndex
       attr_reader :index, :scale
 
+      SCALES = [1, 2, 4]
+
       def initialize(index, scale)
+        if !index.is_a?(GenReg)
+          raise Error, "not a valid index register: #{index.inspect}"
+        end
+        if !SCALES.include?(scale)
+          raise Error, "not a valid index scale: #{scale.inspect}"
+        end
         @index = index
         @scale = scale
       end
@@ -344,7 +394,7 @@ module RAS
       end
 
       def encode(ctx)
-        0b101_000 | reg.number_u3
+        0b101_000 | base.number_u3
         # plus u16 displacement in extension word
       end
 
@@ -355,12 +405,13 @@ module RAS
 
     class AddrDispIdx
       include Mode
-      attr_reader :base, :disp, :index
+      attr_reader :base, :disp, :index, :scale
 
-      def initialize(base, disp, index)
+      def initialize(base, disp, index, scale)
         @base  = base
         @disp  = disp
         @index = index
+        @scale = scale
       end
 
       def mask
@@ -368,12 +419,12 @@ module RAS
       end
 
       def encode(ctx)
-        0b110_000 | reg.number_u3
+        0b110_000 | base.number_u3
         # plus u8 displacement and index in extension word
       end
 
       def inspect
-        "[#{base.inspect}, #{disp.inspect}, #{index.scale}]"
+        "[#{base.inspect}, #{disp.inspect}, #{index.inspect}*#{scale.inspect}]"
       end
     end
 
@@ -401,11 +452,12 @@ module RAS
 
     class PcDispIdx
       include Mode
-      attr_reader :disp, :index
+      attr_reader :disp, :index, :scale
 
-      def initialize(disp, index)
+      def initialize(disp, index, scale)
         @disp  = disp
         @index = index
+        @scale = scale
       end
 
       def mask
@@ -418,7 +470,7 @@ module RAS
       end
 
       def inspect
-        "[pc, #{disp.inspect}, #{index.scale}]"
+        "[pc, #{disp.inspect}, #{index.inspect}*#{scale.inspect}]"
       end
     end
 
@@ -456,15 +508,19 @@ module RAS
     end
 
     class Code
+      # General-purpose registers
       DATA_REGS.each do |r| define_method(r.name) {r} end
       ADDR_REGS.each do |r| define_method(r.name) {r} end
-
       alias fp a6
       alias sp a7
 
-      def add  () Add  .new end
-      def ext  () Ext  .new end
-      def moveq() Moveq.new end
+      # Other registers
+      def pc    () PC        end
+
+      # Instructions
+      def add   () Add  .new end
+      def ext   () Ext  .new end
+      def moveq () Moveq.new end
     end
 
     class Add
@@ -495,7 +551,7 @@ module RAS
     # temp testing junk
     Code.new.instance_eval do
       moveq.l 127, d4
-      add.l [123].w, d0
+      add.l [0, pc, a3*4, 42, 43], d0
     end
   end
 end
