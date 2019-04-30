@@ -29,13 +29,22 @@ module RAS
 
     refine Integer do
       def to_cf_mode
-        Immediate.new self
+        Immediate.new(self)
       end
     end
 
     refine Array do
       def to_cf_mode
-        #...
+        case length
+        when 1
+          #when Integer
+          #end
+          nil
+        when 2
+          nil
+        when 3, 4
+          nil
+        end or raise Error, "invalid addressing mode: #{inspect}"
       end
     end
 
@@ -43,44 +52,65 @@ module RAS
 
     # Addressing Modes
 
-    #        mask bit         nickname  description
-    #        --------------   --------  ---------------------------
-    MODE_D = 0b100000000000 # data      data register direct
-    MODE_A = 0b010000000000 # address   address register direct
-    MODE_I = 0b001000000000 # indirect  address register Indirect
-    MODE_P = 0b000100000000 # plus      address register indirect, post-increment
-    MODE_M = 0b000010000000 # minus     address register indirect, pre-decrement
-    MODE_O = 0b000001000000 # offset    base + displacement
-    MODE_X = 0b000000100000 # index     base + displacement + scaled index
-    MODE_W = 0b000000010000 # word      absolute signed word
-    MODE_L = 0b000000001000 # long      absolute unsigned long
-    MODE_V = 0b000000000100 # value     immediate
-    MODE_R = 0b000000000010 # relative  pc-relative + displacement
-    MODE_T = 0b000000000001 # table     pc-relative + displacement + scaled index
+    # Single
+    #                daipmoxwlIOX
+    MODE_DATA    = 0b100000000000 # data register direct
+    MODE_ADDR    = 0b010000000000 # address register direct
+    MODE_IND     = 0b001000000000 # address register indirect
+    MODE_IND_INC = 0b000100000000 # address register indirect, post-increment
+    MODE_IND_DEC = 0b000010000000 # address register indirect, pre-decrement
+    MODE_DISP    = 0b000001000000 # base + displacement
+    MODE_IDX     = 0b000000100000 # base + displacement + scaled index
+    MODE_ABS16   = 0b000000010000 # absolute signed word
+    MODE_ABS32   = 0b000000001000 # absolute unsigned long
+    MODE_IMM     = 0b000000000100 # immediate
+    MODE_PC_DISP = 0b000000000010 # pc-relative + displacement
+    MODE_PC_IDX  = 0b000000000001 # pc-relative + displacement + scaled index
 
-    #                  DAIPMOXWLVRT
-    M_DAIPMOXWLVRT = 0b111111111111
-    M____PMOXWL___ = 0b000111111000
+    # Composite
+    #                           daipmoxwlIOX
+    MODES_READ              = 0b111111111111
+    MODES_READ_NON_ADDR     = 0b101111111111
+    MODES_WRITE             = 0b111111111000
+    MODES_WRITE_NON_ADDR    = 0b101111111000
+    MODES_WRITE_NON_REG     = 0b001111111000
+    MODES_NON_EXT_WORD      = 0b111110000000
+    MODES_IND_IPMO          = 0b001111000000
+    MODES_IND_XWL           = 0b000000111000
+    MODES_JUMP              = 0b001001111011
+    #...more...
 
-    class Mode
-      #mode_mask   => Integer
-      #encode_mode => Integer
+    module Mode
+      def to_cf_mode
+        self
+      end
+
+      def require(mask)
+        if self.mask.nobits?(mask)
+          raise Error, "unsupported addressing mode: #{inspect}"
+        end
+        self
+      end
+
+      #mask        => Integer
+      #encode(ctx) => Integer
     end
 
     # Immediate
 
-    class Immediate < Mode
+    class Immediate
+      include Mode
       attr_reader :expr
 
       def initialize(expr)
         @expr = expr
       end
 
-      def mode_mask
-        MODE_V
+      def mask
+        MODE_IMM
       end
 
-      def encode
+      def encode(ctx)
         0b111_100
         # and set up to add extension word
       end
@@ -93,6 +123,7 @@ module RAS
     # Absolute
 
     class Absolute
+      include Mode
       attr_reader :addr
 
       def initialize(addr)
@@ -101,11 +132,11 @@ module RAS
     end
 
     class Absolute16 < Absolute
-      def mode_mask
-        MODE_W
+      def mask
+        MODE_ABS16
       end
 
-      def encode
+      def encode(ctx)
         0b111_000
         # and set up to add extension word
       end
@@ -116,11 +147,11 @@ module RAS
     end
 
     class Absolute32 < Absolute
-      def mode_mask
-        MODE_L
+      def mask
+        MODE_ABS32
       end
 
-      def encode
+      def encode(ctx)
         0b111_001
         # and set up to add extension word
       end
@@ -145,6 +176,7 @@ module RAS
     end
 
     class GenReg < Register
+      include Mode
       attr_reader :number_u3, :number_u4
 
       def initialize(name, num3, num4)
@@ -160,8 +192,13 @@ module RAS
         super(name, num, num)
       end
 
-      def mode_mask; MODE_D; end
-      def encode_mode; 0b000_000 | number_u3; end
+      def mask
+        MODE_DATA
+      end
+
+      def encode(ctx)
+        0b000_000 | number_u3
+      end
     end
 
     class AddrReg < GenReg
@@ -169,8 +206,13 @@ module RAS
         super(name, num, num + 8)
       end
 
-      def mode_mask; MODE_A; end
-      def encode_mode; 0b001_000 | number_u3; end
+      def mask
+        MODE_ADDR
+      end
+
+      def encode(ctx)
+        0b001_000 | number_u3
+      end
     end
 
     class AuxReg < Register
@@ -198,17 +240,18 @@ module RAS
     end
 
     class AddrInd
+      include Mode
       attr_reader :reg
 
       def initialize(reg)
         @reg = reg
       end
 
-      def mode_mask
-        MODE_I
+      def mask
+        MODE_IND
       end
 
-      def encode_mode
+      def encode(ctx)
         0b010_000 | reg.number_u3
       end
 
@@ -218,17 +261,18 @@ module RAS
     end
 
     class AddrIndInc # post-increment
+      include Mode
       attr_reader :reg
 
       def initialize(reg)
         @reg = reg
       end
 
-      def mode_mask
-        MODE_P
+      def mask
+        MODE_IND_INC
       end
 
-      def encode_mode
+      def encode(ctx)
         0b011_000 | reg.number_u3
       end
 
@@ -238,17 +282,18 @@ module RAS
     end
 
     class AddrIndDec # pre-decrement
+      include Mode
       attr_reader :reg
 
       def initialize(reg)
         @reg = reg
       end
 
-      def mode_mask
-        MODE_M
+      def mask
+        MODE_IND_DEC
       end
 
-      def encode_mode
+      def encode(ctx)
         0b100_000 | reg.number_u3
       end
 
@@ -258,6 +303,7 @@ module RAS
     end
 
     class AddrDisp
+      include Mode
       attr_reader :base, :disp
 
       def initialize(base, disp)
@@ -265,11 +311,11 @@ module RAS
         @disp = disp
       end
 
-      def mode_mask
-        MODE_D
+      def mask
+        MODE_DATA
       end
 
-      def encode_mode
+      def encode(ctx)
         0b101_000 | reg.number_u3
         # plus u16 displacement in extension word
       end
@@ -280,6 +326,7 @@ module RAS
     end
 
     class AddrDispIdx
+      include Mode
       attr_reader :base, :disp, :index
 
       def initialize(base, disp, index)
@@ -288,11 +335,11 @@ module RAS
         @index = index
       end
 
-      def mode_mask
-        MODE_X
+      def mask
+        MODE_IDX
       end
 
-      def encode_mode
+      def encode(ctx)
         0b110_000 | reg.number_u3
         # plus u8 displacement and index in extension word
       end
@@ -303,17 +350,18 @@ module RAS
     end
 
     class PcDisp
+      include Mode
       attr_reader :disp
 
       def initialize(disp)
         @disp = disp
       end
 
-      def mode_mask
-        MODE_R
+      def mask
+        MODE_PC_DISP
       end
 
-      def encode_mode
+      def encode(ctx)
         0b111_010
         # plus u16 displacement in extension word
       end
@@ -324,6 +372,7 @@ module RAS
     end
 
     class PcDispIdx
+      include Mode
       attr_reader :disp, :index
 
       def initialize(disp, index)
@@ -331,11 +380,11 @@ module RAS
         @index = index
       end
 
-      def mode_mask
-        MODE_R
+      def mask
+        MODE_PC_IDX
       end
 
-      def encode_mode
+      def encode(ctx)
         0b111_011
         # plus u8 displacement and index in extension word
       end
@@ -372,12 +421,7 @@ module RAS
       end
 
       def mode(x, mask)
-        if !x.is_a?(Mode)
-          raise Error, "Invalid addressing mode: #{x.inspect}"
-        elsif x.mode_mask.nobits?(mask)
-          raise Error, "Unsupported addressing mode: #{x.inspect}"
-        end
-        x.encode_mode
+        x.to_cf_mode.require(mask).encode(nil)
       end
 
       def word(w); puts w.to_s(8); end
@@ -399,11 +443,11 @@ module RAS
       include CodeGen
       def l(s, d)
         if d.is_a?(DataReg)
-          word 0o150200 | dr(d) << 9 | mode(s, M_DAIPMOXWLVRT)
+          word 0o150200 | dr(d) << 9 | mode(s, MODES_READ)
         elsif s.is_a?(DataReg)
-          word 0o150600 | dr(s) << 9 | mode(d, M___IPMOXWL___)
+          word 0o150600 | dr(s) << 9 | mode(d, MODES_WRITE_NON_REG)
         else
-          raise Error, "Invalid operands for add.l."
+          raise Error, "invalid operands for add.l."
         end
       end
     end
@@ -423,7 +467,7 @@ module RAS
     # temp testing junk
     Code.new.instance_eval do
       moveq.l 127, d4
-      #add.l d3, d4
+      add.l d3, d4
     end
   end
 end
