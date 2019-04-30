@@ -34,17 +34,33 @@ module RAS
     end
 
     refine Array do
+      def +@
+        case mode = to_cf_mode
+        when AddrInd then AddrIndInc.new(mode.reg)
+        else raise Error, "invalid addressing mode: +#{inspect}"
+        end
+      end
+
+      def w
+        case mode = to_cf_mode
+        when Absolute32 then Absolute16.new(mode.addr)
+        else raise Error, "invalid addressing mode: +#{inspect}"
+        end
+      end
+
       def to_cf_mode
         case length
         when 1
-          #when Integer
-          #end
-          nil
+          case addr = self[0]
+          when Integer    then Absolute32.new(addr)
+          when AddrReg    then AddrInd   .new(addr)
+          when AddrRegDec then AddrIndDec.new(addr.reg)
+          end
         when 2
           nil
         when 3, 4
           nil
-        end or raise Error, "invalid addressing mode: #{inspect}"
+        end or super
       end
     end
 
@@ -206,12 +222,24 @@ module RAS
         super(name, num, num + 8)
       end
 
+      def -@
+        AddrRegDec.new(self)
+      end
+
       def mask
         MODE_ADDR
       end
 
       def encode(ctx)
         0b001_000 | number_u3
+      end
+    end
+
+    class AddrRegDec
+      attr_reader :reg
+
+      def initialize(reg)
+        @reg = reg
       end
     end
 
@@ -467,7 +495,7 @@ module RAS
     # temp testing junk
     Code.new.instance_eval do
       moveq.l 127, d4
-      add.l d3, d4
+      add.l [123].w, d0
     end
   end
 end
