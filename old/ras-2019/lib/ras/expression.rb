@@ -85,5 +85,23 @@ module RAS
     # Equivalent to SHT_RELA in ELF
     attr_reader :offset, :symbol, :type, :addend
   end
+
+  refine Symbol do
+  end
+
+  # temp testing junk
+  extern :a     # defined by someone else
+  at     :a     # defined by location counter
+  equ    :a     # defined explicitly
+
+  move.l  d3, [:a]
+
+  :a + 2        # => Relocation.new(loc, :a, R_M68K_32, 2)
+
+  :a * 4        # ERROR: unsupported relocation type
+
+  defer { symbols.a * 4 }
+  #GROSS!
+
 end
 

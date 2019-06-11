@@ -18,17 +18,15 @@
 
   :foo                    # a symbol
 
-  public                  # output, export
-  protected               # output, ------
-  private                 # ------, ------
-
   at :foo                 # label
+  at! :foo                # label, exported
 
   at :foo do              # label with local subscope
     #...
   end
 
-  eq :foo, 42             # equate
+  set :foo, 42            # set symbol value
+  set! :foo, 42           # set symbol value, disallow changes
 
 # Sample
 
