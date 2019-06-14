@@ -90,7 +90,8 @@ module Raspp
     protected
 
     def source_location
-      ::Kernel.caller_locations
+      locations = ($!)&.backtrace_locations || ::Kernel.caller_locations
+      locations
          .find { |loc| loc.path != __FILE__ }
         &.then { |loc| "#{loc.path}:#{loc.lineno}" }
     end
