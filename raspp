@@ -100,10 +100,17 @@ module Raspp
   end
 
   class CodeContext < Context
+    def initialize
+      @out = ::String.new(capacity: 4096)
+    end
   end
 
   # The top-level context
   class TopLevel < CodeContext
+    def __eval__(ruby, path="-", line=1)
+      super
+      $stdout << @out
+    end
   end
 
   class Error < RuntimeError
