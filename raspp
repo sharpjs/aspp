@@ -18,8 +18,6 @@
 # along with raspp.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-require 'stringio'
-
 module Raspp
 
   # An even more basic object
