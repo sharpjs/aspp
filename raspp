@@ -108,6 +108,9 @@ module Raspp
     def __eval__(ruby, path="-", line=1)
       super
       $stdout << @out
+    rescue Error => e
+      print e
+      ::Kernel.raise
     end
   end
 
