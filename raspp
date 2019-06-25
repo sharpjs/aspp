@@ -114,6 +114,46 @@ module Raspp
     end
   end
 
+  # Terms
+
+  # (operand) Immediate
+  #             -> Symbol
+  #             -> Integer
+  #             -> UnaryExpr
+  #             -> BinaryExpr
+  # (operand) DataReg
+  # (operand) AddrReg
+  # (operand) AddrRegInd
+  # (operand) AddrRegIndInc
+  # (operand) AddrRegIndDec
+  # (operand) AddrRegDisp
+  # (operand) AddrRegIdx
+  # (operand) Abs16
+  # (operand) Abs32
+  # (operand) PcRelDisp
+  # (operand) PcRelIdx
+
+  # An object with meaning in a DSL context.
+  class Term
+    # Returns the DSL context in which the term appears.
+    attr :context
+
+    # Returns a new Term in the given DSL context.
+    def initialize(ctx)
+      @context = ctx
+    end
+
+    # Returns self.  See Object#to_term.
+    def to_term(ctx)
+      self
+    end
+
+    # Promotes the term to an instruction operand.
+    def to_operand
+      raise Error, "invalid assembly operand: #{inspect}"
+    end
+  end
+
   class Error < RuntimeError
   end
 end
