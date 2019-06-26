@@ -154,6 +154,71 @@ module Raspp
     end
   end
 
+  # An assembly symbol.
+  class Symbol < Term
+    attr :name
+
+    # Returns a new Symbol with the given name in the given context.
+    def initialize(name, ctx)
+      super ctx
+      @name = name.to_sym
+    end
+
+    # Converts the term to an instruction operand.
+    def to_operand
+      Immediate.new(self, context)
+    end
+
+    # Returns the assembly-language representation of the term.
+    def to_s
+      name
+    end
+  end
+
+  # An assembly integer constant.
+  class Integer < Term
+    attr :value
+
+    # Returns a new Integer with the given value in the given context.
+    def initialize(value, ctx)
+      super ctx
+      @value = ::Kernel.Integer(value)
+    end
+
+    # Converts the term to an instruction operand.
+    def to_operand
+      Immediate.new(self, context)
+    end
+
+    # Returns the assembly-language representation of the term.
+    def to_s
+      "$#{value.to_s(16)}"
+    end
+  end
+
+  # An instruction operand.
+  class Operand < Term
+    # Returns self.  See Term#to_operand.
+    def to_operand
+      self
+    end
+  end
+
+  # An immediate-mode operand.
+  class Immediate < Operand
+    attr :value
+
+    # Returns a new Immediate with the given value in the given context.
+    def initialize(val, ctx)
+      super ctx
+      @value = val
+    end
+
+    def to_s
+      "\##{value}"
+    end
+  end
+
   class Error < RuntimeError
   end
 end
