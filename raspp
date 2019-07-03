@@ -20,6 +20,33 @@
 
 module Raspp
 
+  # ---------------------------------------------------------------------------
+  # Refinements
+
+  refine Object do
+    # Converts an object to its meaning in the given context.
+    def to_term(ctx)
+      raise Error, "invalid assembly term: #{inspect}"
+    end
+  end
+
+  refine Symbol do
+    # Converts an object to its meaning in the given context.
+    def to_term(ctx)
+      Raspp::Symbol.new(self, ctx)
+    end
+  end
+
+  refine Integer do
+    # Converts an object to its meaning in the given context.
+    def to_term(ctx)
+      Raspp::Integer.new(self, ctx)
+    end
+  end
+
+  # Activate refinements
+  using self
+
   # An even more basic object
   class CleanObject < BasicObject
     # public  methods: __send__, __eval__, __exec__, __id__
