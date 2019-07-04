@@ -124,9 +124,53 @@ module Raspp
     end
   end
 
+  INDENT = " " * 4
+
+  # A context in which instructions and data directives may occur
+  # For this experiment:
+  # - target architecture = ColdFire ISA_A
+  # - target CPU          = MCF5307
+  # - output format       = vasm 'mot' syntax
   class CodeContext < Context
     def initialize
       @out = ::String.new(capacity: 4096)
+    end
+
+    def byte *vals
+      directive :'dc.b', vals, 'hi'
+    end
+
+    def word *vals
+      directive :'dc.w', vals, 'hi'
+    end
+
+    def long *vals
+      directive :'dc.l', vals, 'hi'
+    end
+
+    def directive name, args=nil, comment=nil
+      name = ::Kernel.String name
+      args = ::Kernel.Array  args
+      mark = @out.length
+
+      # Directive
+      @out << INDENT << name
+
+      # Arguments
+      unless args.empty?
+        skip = mark + 15 - @out.length # to col 16
+        @out << " " * skip if skip > 0
+        args.reduce(" ") { |sep, arg| @out << sep << arg.to_term(self).to_s; ", " }
+      end
+
+      # Write comment
+      unless comment.nil?
+        skip = mark + 47 - @out.length # to col 48
+        @out << " " * skip if skip > 0
+        @out << " ; " << ::Kernel.String(comment)
+      end
+
+      @out << ?\n
     end
   end
 
