@@ -30,11 +30,54 @@ module Raspp
     end
   end
 
+  refine Module do
+    # Defines unary operators that produce assembler expressions.
+    def define_asm_unary_ops
+      define_method(:+@) { UnaryOp.new(:+, self) }
+      define_method(:-@) { UnaryOp.new(:-, self) }
+      define_method(:! ) { UnaryOp.new(:!, self) }
+      define_method(:~ ) { UnaryOp.new(:~, self) }
+      nil
+    end
+
+    # Defines binary operators that produce assembler expressions.
+    def define_asm_binary_ops
+      # Returns true if +rhs+ can form a binary expression with the receiver.
+      define_method(:binary_op_with?) do |rhs|
+        case rhs
+        when Numeric    then !is_a?(Numeric)
+        when Symbol     then true
+        when Expression then true
+        end
+      end
+
+      # Define operators
+      %i[ * / % + - << >> & ^ | == != < <= > >= && || ]
+      .each do |op|
+        define_method(op) do |rhs|
+          if binary_op_with?(rhs)
+            BinaryOp.new(op, self, rhs)
+          else
+            super(rhs)
+          end
+        end
+      end
+
+      # Aliases to invoke && || operators, which Ruby cannot override.
+      alias_method :and, :'&&'
+      alias_method :or,  :'||'
+      nil
+    end
+  end
+
   refine Symbol do
     # Converts an object to its meaning in the given context.
     def to_term(ctx)
       Raspp::Symbol.new(self, ctx)
     end
+
+    define_asm_unary_ops
+    define_asm_binary_ops
   end
 
   refine Integer do
@@ -42,6 +85,8 @@ module Raspp
     def to_term(ctx)
       Raspp::Integer.new(self, ctx)
     end
+
+    define_asm_binary_ops
   end
 
   # Activate refinements
@@ -190,8 +235,8 @@ module Raspp
   # (operand) Immediate
   #             -> Symbol
   #             -> Integer
-  #             -> UnaryExpr
-  #             -> BinaryExpr
+  #             -> UnaryOp
+  #             -> BinaryOp
   # (operand) DataReg
   # (operand) AddrReg
   # (operand) AddrRegInd
@@ -223,10 +268,23 @@ module Raspp
     def to_operand
       raise Error, "invalid assembly operand: #{inspect}"
     end
+
+    # All subclasses must override to_s
+  end
+
+  # An assembly expression.
+  class Expression < Term
+    define_asm_unary_ops
+    define_asm_binary_ops
+
+    # Converts the term to an instruction operand.
+    def to_operand
+      Immediate.new(self, context)
+    end
   end
 
   # An assembly symbol.
-  class Symbol < Term
+  class Symbol < Expression
     attr :name
 
     # Returns a new Symbol with the given name in the given context.
@@ -235,10 +293,8 @@ module Raspp
       @name = name.to_sym
     end
 
-    # Converts the term to an instruction operand.
-    def to_operand
-      Immediate.new(self, context)
-    end
+    # TODO: Lookups
+    # TODO: local?
 
     # Returns the assembly-language representation of the term.
     def to_s
@@ -247,7 +303,7 @@ module Raspp
   end
 
   # An assembly integer constant.
-  class Integer < Term
+  class Integer < Expression
     attr :value
 
     # Returns a new Integer with the given value in the given context.
@@ -256,14 +312,38 @@ module Raspp
       @value = ::Kernel.Integer(value)
     end
 
-    # Converts the term to an instruction operand.
-    def to_operand
-      Immediate.new(self, context)
-    end
-
     # Returns the assembly-language representation of the term.
     def to_s
       "$#{value.to_s(16)}"
+    end
+  end
+
+  # An assembler unary operator expression.
+  class UnaryOp < Expression
+    attr :op, :expr
+
+    def initialize(op, expr, ctx)
+      @op   = ::Kernel.Symbol(op)
+      @expr = expr.to_term(ctx)
+    end
+
+    def to_s
+      "#{@op}#{@expr}"
+    end
+  end
+
+  # An assembler binary operator expression.
+  class BinaryOp < Expression
+    attr :op, :lhs, :rhs
+
+    def initialize(op, lhs, rhs, ctx)
+      @op  = ::Kernel.Symbol(op)
+      @lhs = lhs.to_term(ctx)
+      @rhs = rhs.to_term(ctx)
+    end
+
+    def to_s
+      "(#{@lhs} #{@op} #{@rhs})"
     end
   end
 
