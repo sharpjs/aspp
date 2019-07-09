@@ -30,6 +30,17 @@ module Raspp
     end
   end
 
+  refine Proc do
+    # Invokes the Proc and converts its result the corresponding meaning in the
+    # given DSL context.  This allows a Proc to be used as an analog to a
+    # function-like preprocessor macro.  Example:
+    #   cpp:   #define FOO(x) x + 1
+    #   raspp: FOO = ->x { x + 1 }
+    def to_term(ctx)
+      call.to_term(ctx)
+    end
+  end
+
   refine Module do
     # Defines unary operators that produce assembler expressions.
     def define_asm_unary_ops
