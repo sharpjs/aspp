@@ -56,8 +56,8 @@ module Raspp
       # Returns true if +rhs+ can form a binary expression with the receiver.
       define_method(:binary_op_with?) do |rhs|
         case rhs
-        when Numeric    then !is_a?(Numeric)
-        when Symbol     then true
+        when ::Numeric  then !is_a?(::Numeric)
+        when ::Symbol   then true
         when Expression then true
         end
       end
@@ -309,7 +309,7 @@ module Raspp
 
     # Returns the assembly-language representation of the term.
     def to_s
-      name
+      name.to_s
     end
   end
 
@@ -333,9 +333,15 @@ module Raspp
   class UnaryOp < Expression
     attr :op, :expr
 
-    def initialize(op, expr, ctx)
-      @op   = ::Kernel.Symbol(op)
-      @expr = expr.to_term(ctx)
+    def initialize(op, expr)
+      @op   = op.to_sym
+      @expr = expr
+    end
+
+    def to_term(ctx)
+      @context ||= ctx
+      @expr = expr.to_term(context)
+      self
     end
 
     def to_s
@@ -347,10 +353,17 @@ module Raspp
   class BinaryOp < Expression
     attr :op, :lhs, :rhs
 
-    def initialize(op, lhs, rhs, ctx)
-      @op  = ::Kernel.Symbol(op)
-      @lhs = lhs.to_term(ctx)
-      @rhs = rhs.to_term(ctx)
+    def initialize(op, lhs, rhs)
+      @op  = op.to_sym
+      @lhs = lhs
+      @rhs = rhs
+    end
+
+    def to_term(ctx)
+      @context ||= ctx
+      @lhs = lhs.to_term(context)
+      @rhs = rhs.to_term(context)
+      self
     end
 
     def to_s
