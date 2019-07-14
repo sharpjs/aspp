@@ -100,6 +100,13 @@ module Raspp
     define_asm_binary_ops
   end
 
+  refine String do
+    # Converts an object to its meaning in the given context.
+    def to_term(ctx)
+      Raspp::String.new(self, ctx)
+    end
+  end
+
   # Activate refinements
   using self
 
@@ -313,7 +320,7 @@ module Raspp
     end
   end
 
-  # An assembly integer constant.
+  # An assembly integer literal.
   class Integer < Expression
     attr :value
 
@@ -326,6 +333,34 @@ module Raspp
     # Returns the assembly-language representation of the term.
     def to_s
       "$#{value.to_s(16)}"
+    end
+  end
+
+  # An assembly string literal.
+  class String < Expression
+    attr :value
+
+    # Returns a new String with the given value in the given context.
+    def initialize(value, ctx)
+      super ctx
+      @value = ::Kernel.String(value)
+    end
+
+    # Returns the assembly-language representation of the term.
+    def to_s
+      value.each_byte.reduce(+'"') do |s, b|
+        s << case b
+        when 0x20..0x7E then b
+        when 0x08 then '\b'
+        when 0x09 then '\t'
+        when 0x0A then '\n'
+        when 0x0C then '\f'
+        when 0x0D then '\r'
+        when 0x22 then '\"'
+        when 0x5C then '\\\\'
+        else '\x%02X' % b
+        end
+      end << '"'
     end
   end
 
