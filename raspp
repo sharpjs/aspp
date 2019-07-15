@@ -110,6 +110,9 @@ module Raspp
   # Activate refinements
   using self
 
+  # ---------------------------------------------------------------------------
+  # Core Classes
+
   # An even more basic object
   class CleanObject < BasicObject
     # public  methods: __send__, __eval__, __exec__, __id__
@@ -405,6 +408,9 @@ module Raspp
       "(#{@lhs} #{@op} #{@rhs})"
     end
   end
+
+  # ---------------------------------------------------------------------------
+  # Target-Specific Classes
 
   # An instruction operand.
   class Operand < Term
