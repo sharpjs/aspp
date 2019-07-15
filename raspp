@@ -150,7 +150,7 @@ module Raspp
 
     def self.const_missing(name)
       # Make 'uninitialized constant' errors prettier.
-      ::Object.const_get(name)
+      raise ::NameError, "uninitialized constant #{name}"
     end
 
     freeze
