@@ -1,5 +1,5 @@
 #!/usr/bin/env ruby
-# frozen_string_literal: true
+#frozen_string_literal: true
 #
 # raspp - Assembly Preprocessor in Ruby
 # Copyright (C) 2019 Jeffrey Sharp
@@ -16,7 +16,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with raspp.  If not, see <http://www.gnu.org/licenses/>.
-#
 
 module Raspp
 
@@ -113,6 +112,10 @@ module Raspp
   # ---------------------------------------------------------------------------
   # Core Classes
 
+  # Constants
+  K      = ::Kernel
+  INDENT = " " * 4
+
   # An even more basic object
   class CleanObject < BasicObject
     # public  methods: __send__, __eval__, __exec__, __id__
@@ -189,8 +192,6 @@ module Raspp
         &.then { |loc| "#{loc.path}:#{loc.lineno}" }
     end
   end
-
-  INDENT = " " * 4
 
   # A context in which instructions and data directives may occur
   # For this experiment:
