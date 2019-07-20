@@ -158,6 +158,13 @@ module Raspp
          .find { |loc| loc.path != __FILE__ }
         &.then { |loc| "#{loc.path}:#{loc.lineno}" }
     end
+
+    private
+
+    def self.const_missing(name)
+      # Make 'uninitialized constant' errors prettier.
+      raise ::NameError, "uninitialized constant #{name}"
+    end
   end
 
   # A context in which instructions and data directives may occur
