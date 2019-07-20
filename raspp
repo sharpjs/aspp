@@ -416,7 +416,6 @@ if __FILE__ == $0
       context.__eval__(ARGF.file.read, ARGF.path)
       $stdout << output
     rescue Raspp::Error
-      context.print e
       exit false
     end
     ARGF.skip
