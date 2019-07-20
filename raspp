@@ -147,13 +147,13 @@ module Raspp
             when 1 then msgs[0]
             when 2 then "multiple errors"
             end
-      ::Kernel.raise Error, msg
+      K.raise Error, msg
     end
 
     protected
 
     def source_location
-      locations = ($!)&.backtrace_locations || ::Kernel.caller_locations
+      locations = ($!)&.backtrace_locations || K.caller_locations
       locations
          .find { |loc| loc.path != __FILE__ }
         &.then { |loc| "#{loc.path}:#{loc.lineno}" }
@@ -183,8 +183,8 @@ module Raspp
     end
 
     def directive name, args=nil, comment=nil
-      name = ::Kernel.String name
-      args = ::Kernel.Array  args
+      name = K.String name
+      args = K.Array  args
       mark = @out.length
 
       # Directive
@@ -201,7 +201,7 @@ module Raspp
       unless comment.nil?
         skip = mark + 47 - @out.length # to col 48
         @out << " " * skip if skip > 0
-        @out << " ; " << ::Kernel.String(comment)
+        @out << " ; " << K.String(comment)
       end
 
       @out << ?\n
@@ -291,7 +291,7 @@ module Raspp
     # Returns a new Integer with the given value in the given context.
     def initialize(value, ctx)
       super ctx
-      @value = ::Kernel.Integer(value)
+      @value = K.Integer(value)
     end
 
     # Returns the assembly-language representation of the term.
@@ -307,7 +307,7 @@ module Raspp
     # Returns a new String with the given value in the given context.
     def initialize(value, ctx)
       super ctx
-      @value = ::Kernel.String(value)
+      @value = K.String(value)
     end
 
     # Returns the assembly-language representation of the term.
