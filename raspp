@@ -24,6 +24,8 @@ module Raspp
   #
   # ruby-operator => [assembler-operator, precedence, associativity]
 
+  MAX_PREC = 11 # for atomic expressions
+
   UNARY_OPS = {
     :+@ => [:+, 10, :right],
     :-@ => [:-, 10, :right],
@@ -44,10 +46,10 @@ module Raspp
     :-   => [:-,   4, :left],
     :<   => [:<,   3, :left],
     :>   => [:>,   3, :left],
-    :<=  => [:<=,  3, :none],
-    :>=  => [:>=,  3, :none],
-    :==  => [:==,  2, :none],
-    :!=  => [:!=,  2, :none],
+    :<=  => [:<=,  3, nil  ],
+    :>=  => [:>=,  3, nil  ],
+    :==  => [:==,  2, nil  ],
+    :!=  => [:!=,  2, nil  ],
     :and => [:and, 1, :left],
     :or  => [:or,  0, :left]
   }
@@ -273,8 +275,16 @@ module Raspp
 
   # An assembly expression.
   class Expression < Term
+    attr :prec, :assoc
     define_asm_unary_ops
     define_asm_binary_ops
+
+    # Returns a new Expression with the given precedence and associativity.
+    def initialize(prec, assoc, ctx)
+      @prec  = prec
+      @assoc = assoc
+      super(ctx)
+    end
 
     # Converts the term to an instruction operand.
     def to_operand
@@ -288,8 +298,8 @@ module Raspp
 
     # Returns a new Symbol with the given name in the given context.
     def initialize(name, ctx)
-      super ctx
       @name = name.to_sym
+      super(MAX_PREC, nil, ctx)
     end
 
     # TODO: Lookups
@@ -307,8 +317,8 @@ module Raspp
 
     # Returns a new Integer with the given value in the given context.
     def initialize(value, ctx)
-      super ctx
       @value = K.Integer(value)
+      super(MAX_PREC, nil, ctx)
     end
 
     # Returns the assembly-language representation of the term.
@@ -323,8 +333,8 @@ module Raspp
 
     # Returns a new String with the given value in the given context.
     def initialize(value, ctx)
-      super ctx
       @value = K.String(value)
+      super(MAX_PREC, nil, ctx)
     end
 
     # Returns the assembly-language representation of the term.
@@ -352,6 +362,7 @@ module Raspp
     def initialize(op, prec, assoc, expr)
       @op   = op.to_sym
       @expr = expr
+      super(prec, assoc, nil)
     end
 
     def to_term(ctx)
@@ -373,6 +384,7 @@ module Raspp
       @op  = op.to_sym
       @lhs = lhs
       @rhs = rhs
+      super(prec, assoc, nil)
     end
 
     def to_term(ctx)
