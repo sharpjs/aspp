@@ -219,24 +219,12 @@ module Raspp
   class TopLevel < CodeContext
   end
 
-  # Terms
+  # Error raised by the +error+ method
+  class Error < RuntimeError
+  end
 
-  # (operand) Immediate
-  #             -> Symbol
-  #             -> Integer
-  #             -> UnaryOp
-  #             -> BinaryOp
-  # (operand) DataReg
-  # (operand) AddrReg
-  # (operand) AddrRegInd
-  # (operand) AddrRegIndInc
-  # (operand) AddrRegIndDec
-  # (operand) AddrRegDisp
-  # (operand) AddrRegIdx
-  # (operand) Abs16
-  # (operand) Abs32
-  # (operand) PcRelDisp
-  # (operand) PcRelIdx
+  # ---------------------------------------------------------------------------
+  # Terms
 
   # An object with meaning in a DSL context.
   class Term
@@ -378,7 +366,24 @@ module Raspp
   end
 
   # ---------------------------------------------------------------------------
-  # Target-Specific Classes
+  # Target-Specific Terms
+
+  # (operand) Immediate
+  #             -> Symbol
+  #             -> Integer
+  #             -> UnaryOp
+  #             -> BinaryOp
+  # (operand) DataReg
+  # (operand) AddrReg
+  # (operand) AddrRegInd
+  # (operand) AddrRegIndInc
+  # (operand) AddrRegIndDec
+  # (operand) AddrRegDisp
+  # (operand) AddrRegIdx
+  # (operand) Abs16
+  # (operand) Abs32
+  # (operand) PcRelDisp
+  # (operand) PcRelIdx
 
   # An instruction operand.
   class Operand < Term
@@ -401,9 +406,6 @@ module Raspp
     def to_s
       "\##{value}"
     end
-  end
-
-  class Error < RuntimeError
   end
 end
 
