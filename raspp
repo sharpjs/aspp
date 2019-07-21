@@ -20,6 +20,39 @@
 module Raspp
 
   # ---------------------------------------------------------------------------
+  # Operators
+  #
+  # ruby-operator => [assembler-operator, precedence, associativity]
+
+  UNARY_OPS = {
+    :+@ => [:+, 10, :right],
+    :-@ => [:-, 10, :right],
+    :~  => [:~, 10, :right],
+    :!  => [:!, 10, :right]
+  }
+
+  BINARY_OPS = {
+    :<<  => [:<<,  9, :left],
+    :>>  => [:>>,  9, :left],
+    :&   => [:&,   8, :left],
+    :^   => [:^,   7, :left],
+    :|   => [:|,   6, :left],
+    :*   => [:*,   5, :left],
+    :/   => [:/,   5, :left],
+    :%   => [:%,   5, :left],
+    :+   => [:+,   4, :left],
+    :-   => [:-,   4, :left],
+    :<   => [:<,   3, :left],
+    :>   => [:>,   3, :left],
+    :<=  => [:<=,  3, :none],
+    :>=  => [:>=,  3, :none],
+    :==  => [:==,  2, :none],
+    :!=  => [:!=,  2, :none],
+    :and => [:and, 1, :left],
+    :or  => [:or,  0, :left]
+  }
+
+  # ---------------------------------------------------------------------------
   # Refinements
 
   refine Object do
@@ -43,15 +76,20 @@ module Raspp
   refine Module do
     # Defines unary operators that produce assembler expressions.
     def define_asm_unary_ops
-      define_method(:+@) { UnaryOp.new(:+, self) }
-      define_method(:-@) { UnaryOp.new(:-, self) }
-      define_method(:! ) { UnaryOp.new(:!, self) }
-      define_method(:~ ) { UnaryOp.new(:~, self) }
+      UNARY_OPS.each do |op, args|
+        define_method(op) { UnaryOp.new(*args, self) }
+      end
       nil
     end
 
     # Defines binary operators that produce assembler expressions.
     def define_asm_binary_ops
+      BINARY_OPS.each do |op, args|
+        define_method(op) do |rhs|
+          binary_op_with?(rhs) ? BinaryOp.new(*args, self, rhs) : super(rhs)
+        end
+      end
+
       # Returns true if +rhs+ can form a binary expression with the receiver.
       define_method(:binary_op_with?) do |rhs|
         case rhs
@@ -60,22 +98,6 @@ module Raspp
         when Expression then true
         end
       end
-
-      # Define operators
-      %i[ * / % + - << >> & ^ | == != < <= > >= && || ]
-      .each do |op|
-        define_method(op) do |rhs|
-          if binary_op_with?(rhs)
-            BinaryOp.new(op, self, rhs)
-          else
-            super(rhs)
-          end
-        end
-      end
-
-      # Aliases to invoke && || operators, which Ruby cannot override.
-      alias_method :and, :'&&'
-      alias_method :or,  :'||'
       nil
     end
   end
@@ -327,7 +349,7 @@ module Raspp
   class UnaryOp < Expression
     attr :op, :expr
 
-    def initialize(op, expr)
+    def initialize(op, prec, assoc, expr)
       @op   = op.to_sym
       @expr = expr
     end
@@ -347,7 +369,7 @@ module Raspp
   class BinaryOp < Expression
     attr :op, :lhs, :rhs
 
-    def initialize(op, lhs, rhs)
+    def initialize(op, prec, assoc, lhs, rhs)
       @op  = op.to_sym
       @lhs = lhs
       @rhs = rhs
