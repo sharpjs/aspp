@@ -27,31 +27,31 @@ module Raspp
   MAX_PREC = 11 # for atomic expressions
 
   UNARY_OPS = {
-    :+@ => [:+, 10, :right],
-    :-@ => [:-, 10, :right],
-    :~  => [:~, 10, :right],
-    :!  => [:!, 10, :right]
+    :+@  => ['+', 10, :right],
+    :-@  => ['-', 10, :right],
+    :~   => ['~', 10, :right],
+    :!   => ['!', 10, :right]
   }
 
   BINARY_OPS = {
-    :<<  => [:<<,  9, :left],
-    :>>  => [:>>,  9, :left],
-    :&   => [:&,   8, :left],
-    :^   => [:^,   7, :left],
-    :|   => [:|,   6, :left],
-    :*   => [:*,   5, :left],
-    :/   => [:/,   5, :left],
-    :%   => [:%,   5, :left],
-    :+   => [:+,   4, :left],
-    :-   => [:-,   4, :left],
-    :<   => [:<,   3, :left],
-    :>   => [:>,   3, :left],
-    :<=  => [:<=,  3, nil  ],
-    :>=  => [:>=,  3, nil  ],
-    :==  => [:==,  2, nil  ],
-    :!=  => [:!=,  2, nil  ],
-    :and => [:and, 1, :left],
-    :or  => [:or,  0, :left]
+    :<<  => ['<<', 9, :left],
+    :>>  => ['>>', 9, :left],
+    :&   => ['&',  8, :left],
+    :^   => ['^',  7, :left],
+    :|   => ['|',  6, :left],
+    :*   => ['*',  5, :left],
+    :/   => ['/',  5, :left],
+    :%   => ['%',  5, :left],
+    :+   => ['+',  4, :left],
+    :-   => ['-',  4, :left],
+    :<   => ['<',  3, :left],
+    :>   => ['>',  3, :left],
+    :<=  => ['<=', 3, nil  ],
+    :>=  => ['>=', 3, nil  ],
+    :==  => ['==', 2, nil  ],
+    :!=  => ['!=', 2, nil  ],
+    :and => ['&&', 1, :left],
+    :or  => ['||', 0, :left]
   }
 
   # ---------------------------------------------------------------------------
@@ -360,7 +360,7 @@ module Raspp
     attr :op, :expr
 
     def initialize(op, prec, assoc, expr)
-      @op   = op.to_sym
+      @op   = K.String(op)
       @expr = expr
       super(prec, assoc, nil)
     end
@@ -381,7 +381,7 @@ module Raspp
     attr :op, :lhs, :rhs
 
     def initialize(op, prec, assoc, lhs, rhs)
-      @op  = op.to_sym
+      @op  = K.String(op)
       @lhs = lhs
       @rhs = rhs
       super(prec, assoc, nil)
