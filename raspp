@@ -198,7 +198,8 @@ module Raspp
   # - output format       = vasm 'mot' syntax
   class CodeContext < Context
     def initialize(out)
-      @out = out
+      @out  = out
+      @regs = {}
     end
 
     def byte *vals
@@ -237,6 +238,42 @@ module Raspp
 
       @out << ?\n
     end
+
+    # Data registers
+    def d0; @regs[:d0] ||= DataRegister.new(:d0, 0, self); end
+    def d1; @regs[:d1] ||= DataRegister.new(:d1, 1, self); end
+    def d2; @regs[:d2] ||= DataRegister.new(:d2, 2, self); end
+    def d3; @regs[:d3] ||= DataRegister.new(:d3, 3, self); end
+    def d4; @regs[:d4] ||= DataRegister.new(:d4, 4, self); end
+    def d5; @regs[:d5] ||= DataRegister.new(:d5, 5, self); end
+    def d6; @regs[:d6] ||= DataRegister.new(:d6, 6, self); end
+    def d7; @regs[:d7] ||= DataRegister.new(:d7, 7, self); end
+
+    # Address registers
+    def a0; @regs[:a0] ||= AddressRegister.new(:a0, 0, self); end
+    def a1; @regs[:a1] ||= AddressRegister.new(:a1, 1, self); end
+    def a2; @regs[:a2] ||= AddressRegister.new(:a2, 2, self); end
+    def a3; @regs[:a3] ||= AddressRegister.new(:a3, 3, self); end
+    def a4; @regs[:a4] ||= AddressRegister.new(:a4, 4, self); end
+    def a5; @regs[:a5] ||= AddressRegister.new(:a5, 5, self); end
+    def a6; @regs[:a6] ||= AddressRegister.new(:fp, 6, self); end
+    def a7; @regs[:a7] ||= AddressRegister.new(:sp, 7, self); end
+    alias fp a6
+    alias sp a7
+
+    # Auxiliary registers
+    def pc;  @regs[:pc ] ||= Register.new(:pc,  self); end
+    def sr;  @regs[:sr ] ||= Register.new(:sr,  self); end
+    def ccr; @regs[:ccr] ||= Register.new(:ccr, self); end
+    def bc;  @regs[:bc ] ||= Register.new(:bc,  self); end
+
+    # Control registers
+    def vbr;    @regs[:vbr   ] ||= ControlRegister.new(:vbr,    self); end
+    def cacr;   @regs[:cacr  ] ||= ControlRegister.new(:cacr,   self); end
+    def acr0;   @regs[:acr0  ] ||= ControlRegister.new(:acr0,   self); end
+    def acr1;   @regs[:acr1  ] ||= ControlRegister.new(:acr1,   self); end
+    def mbar;   @regs[:mbar  ] ||= ControlRegister.new(:mbar,   self); end
+    def rambar; @regs[:rambar] ||= ControlRegister.new(:rambar, self); end
   end
 
   # The top-level context
