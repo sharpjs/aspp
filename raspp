@@ -256,13 +256,24 @@ module Raspp
     attr :context
 
     # Returns a new Term in the given DSL context.
-    def initialize(ctx)
-      @context = ctx
+    def initialize(ctx = nil)
+      unless NilClass === ctx
+        @context = ctx
+        freeze
+      end
     end
 
     # Returns self.  See Object#to_term.
     def to_term(ctx)
-      self
+      raise ArgumentError, "a Context is required" unless Context === ctx
+      if NilClass === @context
+        @context = ctx # will raise if already has a context
+        freeze
+      elsif @context.__id__ == ctx.__id__
+        self
+      else
+        raise "nope"
+      end
     end
 
     # Promotes the term to an instruction operand.
@@ -440,6 +451,54 @@ module Raspp
     def to_s
       "\##{value}"
     end
+  end
+
+  # A register
+  class Register < Operand
+    attr :name
+
+    def initialize(name, ctx)
+      @name = name.to_sym
+      super(ctx)
+    end
+
+    def to_s
+      name.to_s
+    end
+  end
+
+  # A numbered register.
+  class NumberedRegister < Register
+    attr :number
+
+    def initialize(name, num, ctx)
+      @number = num
+      super(name, ctx)
+    end
+
+    def <=> other
+      self.class  === other &&
+      self.number <=> other.number
+    end
+  end
+
+  # A data register.
+  class DataRegister < NumberedRegister
+    def succ
+      context.__send__(:"d#{number + 1}")
+    end
+  end
+
+  # An address register.
+  class AddressRegister < NumberedRegister
+    def succ
+      context.__send__(:"a#{number + 1}")
+    end
+  end
+
+  # A control register.
+  class ControlRegister < Register
+    # marker only
   end
 end
 
